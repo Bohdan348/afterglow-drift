@@ -1,0 +1,42 @@
+import * as T from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+export type Point=[number,number];
+export type TownData={bounds:number[],spawn:{x:number,z:number,yaw:number},buildings:{id:number,p:Point[],h:number,kind:string,knownHeight:boolean}[],roads:{id:number,p:Point[],width:number,kind:string,name:string}[],areas:{p:Point[],kind:string,name:string}[]};
+let cached:Promise<TownData>|null=null;
+export function loadTownData(){return cached??=(fetch('/maps/svitlodarsk.json').then(r=>{if(!r.ok)throw new Error('Town data could not load');return r.json() as Promise<TownData>}).catch(e=>{cached=null;throw e}));}
+export function inside(x:number,z:number,p:Point[]){let hit=false;for(let i=0,j=p.length-1;i<p.length;j=i++){const a=p[i],b=p[j];if((a[1]>z)!==(b[1]>z)&&x<(b[0]-a[0])*(z-a[1])/(b[1]-a[1])+a[0])hit=!hit}return hit}
+export function createTownCollider(data:TownData){
+ const grid=new Map<string,number[]>();const cell=80;
+ data.buildings.forEach((b,i)=>{const xs=b.p.map(p=>p[0]),zs=b.p.map(p=>p[1]);for(let x=Math.floor((Math.min(...xs)-3)/cell);x<=Math.floor((Math.max(...xs)+3)/cell);x++)for(let z=Math.floor((Math.min(...zs)-3)/cell);z<=Math.floor((Math.max(...zs)+3)/cell);z++){const key=x+','+z;const ids=grid.get(key)??[];ids.push(i);grid.set(key,ids)}});
+ const water=data.areas.filter(a=>a.kind==='water');
+ return(x:number,z:number,vx:number,vz:number,previous:Point)=>{
+  let hit=false;const [minX,minZ,maxX,maxZ]=data.bounds;
+  if(x<minX||x>maxX){x=T.MathUtils.clamp(x,minX,maxX);vx*=-.2;hit=true}if(z<minZ||z>maxZ){z=T.MathUtils.clamp(z,minZ,maxZ);vz*=-.2;hit=true}
+  for(const i of grid.get(Math.floor(x/cell)+','+Math.floor(z/cell))??[]){const p=data.buildings[i].p;let best=Infinity,qx=x,qz=z;for(let j=1;j<p.length;j++){const a=p[j-1],b=p[j],dx=b[0]-a[0],dz=b[1]-a[1];const u=T.MathUtils.clamp(((x-a[0])*dx+(z-a[1])*dz)/(dx*dx+dz*dz||1),0,1);const px=a[0]+u*dx,pz=a[1]+u*dz,d=(x-px)**2+(z-pz)**2;if(d<best){best=d;qx=px;qz=pz}}
+   const within=inside(x,z,p);if(within||best<2.2**2){let dx=within?qx-x:x-qx,dz=within?qz-z:z-qz;const length=Math.hypot(dx,dz);if(length<.0001){x=previous[0];z=previous[1];vx*=-.2;vz*=-.2;hit=true;continue}dx/=length;dz/=length;x=qx+dx*2.25;z=qz+dz*2.25;const into=vx*dx+vz*dz;if(into<0){vx-=dx*into*1.25;vz-=dz*into*1.25}hit=true}}
+  if(water.some(a=>inside(x,z,a.p))){x=previous[0];z=previous[1];vx*=-.2;vz*=-.2;hit=true}
+  return{x,z,vx,vz,hit};
+ }
+}
+export function createTown(data:TownData){
+ const group=new T.Group(),textures:T.Texture[]=[];const mat=(color:string,roughness=.85)=>new T.MeshStandardMaterial({color,roughness});
+ const land=mat('#7f876b'),grass=mat('#697e59'),asphalt=mat('#3b4244'),path=mat('#a6a28b'),roofMat=mat('#606c70'),water= new T.MeshStandardMaterial({color:'#457e87',roughness:.27,metalness:.6});
+ const batches=new Map<T.Material,T.BufferGeometry[]>();function add(g:T.BufferGeometry,m:T.Material){const list=batches.get(m)??[];list.push(g);batches.set(m,list)}
+ function flat(p:Point[],height:number,m:T.Material){if(p.length<4)return;const shape=new T.Shape(p.map(q=>new T.Vector2(q[0],-q[1])));const g=new T.ShapeGeometry(shape);g.rotateX(-Math.PI/2);g.translate(0,height,0);add(g,m)}
+ const ground=new T.Mesh(new T.PlaneGeometry(15000,15000),land);ground.rotation.x=-Math.PI/2;ground.position.y=-.18;ground.receiveShadow=true;group.add(ground);
+ for(const a of data.areas){if(a.kind==='water')flat(a.p,-.08,water);else if(['grass','forest','wood','park','meadow','recreation_ground','village_green','orchard'].includes(a.kind))flat(a.p,-.06,grass);else if(['pitch','parking','pedestrian'].includes(a.kind))flat(a.p,-.025,path)}
+ // Original geographic centerlines, widened only by their road-class defaults.
+ const roadSegments:{a:Point,b:Point,width:number}[]=[];
+ for(const road of data.roads){const drivable=['residential','service','unclassified'].includes(road.kind),w=road.width;for(let i=1;i<road.p.length;i++){const a=road.p[i-1],b=road.p[i],dx=b[0]-a[0],dz=b[1]-a[1],length=Math.hypot(dx,dz);if(length<.05)continue;const g=new T.PlaneGeometry(w,length+.35);g.rotateX(-Math.PI/2);g.rotateY(Math.atan2(dx,dz));g.translate((a[0]+b[0])/2,.015,(a[1]+b[1])/2);add(g,drivable?asphalt:path);if(drivable){roadSegments.push({a,b,width:w});const disc=new T.CircleGeometry(w/2,10);disc.rotateX(-Math.PI/2);disc.translate(a[0],.016,a[1]);add(disc,asphalt)}}}
+ // Repeatable facade cells add windows and floor lines without thousands of draw calls.
+ const facades=['#c2beb0','#adbaa9','#c3af9c','#a7b4ba'].map((color,k)=>{const c=document.createElement('canvas');c.width=128;c.height=128;const ctx=c.getContext('2d')!;ctx.fillStyle=color;ctx.fillRect(0,0,128,128);ctx.fillStyle='#7f8987';ctx.fillRect(0,123,128,5);ctx.fillStyle='#e2ded0';ctx.fillRect(32,27,64,77);ctx.fillStyle=k===2?'#697e80':'#34535d';ctx.fillRect(37,32,54,67);ctx.fillStyle='#a6bbbc';ctx.fillRect(63,32,3,67);ctx.fillRect(37,62,54,3);const tx=new T.CanvasTexture(c);tx.wrapS=tx.wrapT=T.RepeatWrapping;tx.colorSpace=T.SRGBColorSpace;textures.push(tx);return new T.MeshStandardMaterial({map:tx,roughness:.85,side:T.DoubleSide})});
+ const util=mat('#a4a599');util.side=T.DoubleSide;
+ for(const b of data.buildings){const position:number[]=[],uv:number[]=[],idx:number[]=[];for(let i=1;i<b.p.length;i++){const a=b.p[i-1],c=b.p[i],length=Math.hypot(c[0]-a[0],c[1]-a[1]);const n=position.length/3;position.push(a[0],0,a[1],c[0],0,c[1],a[0],b.h,a[1],c[0],b.h,c[1]);uv.push(0,0,length/3.8,0,0,b.h/3.1,length/3.8,b.h/3.1);idx.push(n,n+2,n+1,n+1,n+2,n+3)}const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(position,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();add(g,['garage','garages','greenhouse','ruins'].includes(b.kind)?util:facades[b.id%facades.length]);flat(b.p,b.h,roofMat)}
+ for(const [material,geometries]of batches){if(!geometries.length)continue;const merged=mergeGeometries(geometries,false);if(!merged)throw new Error('Unable to assemble town geometry');const m=new T.Mesh(merged,material);m.castShadow=facades.includes(material as T.MeshStandardMaterial)||material===util;m.receiveShadow=true;group.add(m);geometries.forEach(g=>g.dispose())}
+ // Trees use mapped green areas; instances keep the whole-town scene efficient.
+ const greens=data.areas.filter(a=>['forest','wood','park','orchard','recreation_ground'].includes(a.kind));const trees:Point[]=[];let seed=17;const rand=()=>((seed=seed*16807%2147483647)-1)/2147483646;
+ for(const a of greens){const xs=a.p.map(p=>p[0]),zs=a.p.map(p=>p[1]),minX=Math.max(data.bounds[0],Math.min(...xs)),maxX=Math.min(data.bounds[2],Math.max(...xs)),minZ=Math.max(data.bounds[1],Math.min(...zs)),maxZ=Math.min(data.bounds[3],Math.max(...zs));for(let j=0;j<Math.min(220,(maxX-minX)*(maxZ-minZ)/150);j++){const x=minX+rand()*(maxX-minX),z=minZ+rand()*(maxZ-minZ);if(inside(x,z,a.p))trees.push([x,z])}}
+ if(trees.length){const crowns=new T.InstancedMesh(new T.IcosahedronGeometry(3.8,1),mat('#4d7257'),trees.length);const trunks=new T.InstancedMesh(new T.CylinderGeometry(.3,.5,6,6),mat('#776956'),trees.length);const dummy=new T.Object3D();trees.forEach((p,i)=>{dummy.position.set(p[0],7,p[1]);dummy.scale.setScalar(.8+rand()*.5);dummy.updateMatrix();crowns.setMatrixAt(i,dummy.matrix);dummy.position.y=3;dummy.scale.setScalar(1);dummy.updateMatrix();trunks.setMatrixAt(i,dummy.matrix)});crowns.castShadow=true;group.add(crowns,trunks)}
+ const collide=createTownCollider(data);
+ return{group,textures,data,collide};
+}
