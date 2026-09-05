@@ -1,9 +1,6 @@
 import * as T from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-export type Point=[number,number];
-export type TownData={bounds:number[],spawn:{x:number,z:number,yaw:number},buildings:{id:number,p:Point[],h:number,kind:string,knownHeight:boolean}[],roads:{id:number,p:Point[],width:number,kind:string,name:string}[],areas:{p:Point[],kind:string,name:string}[]};
-let cached:Promise<TownData>|null=null;
-export function loadTownData(){return cached??=(fetch('/maps/svitlodarsk.json').then(r=>{if(!r.ok)throw new Error('Town data could not load');return r.json() as Promise<TownData>}).catch(e=>{cached=null;throw e}));}
+import {type Point,type TownData} from './town-data';
 export function inside(x:number,z:number,p:Point[]){let hit=false;for(let i=0,j=p.length-1;i<p.length;j=i++){const a=p[i],b=p[j];if((a[1]>z)!==(b[1]>z)&&x<(b[0]-a[0])*(z-a[1])/(b[1]-a[1])+a[0])hit=!hit}return hit}
 export function createTownCollider(data:TownData){
  const grid=new Map<string,number[]>();const cell=80;

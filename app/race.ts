@@ -1,6 +1,7 @@
 import * as T from 'three';
 import { createParking, parkingCollision } from './parking';
-import {createTown,loadTownData} from './town';
+import {createTown} from './town';
+import {loadTownData} from './town-data';
 export type MapId='coast'|'costco'|'svitlodarsk';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 

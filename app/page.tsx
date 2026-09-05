@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { createGame, type MapId } from './race';
+import type { createGame, MapId } from './race';
 import {TownMinimap} from './town-minimap';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 const maps={coast:{title:'Coastline circuit',location:'PACIFIC COAST',description:'Sweeping corners along the coast.',number:'01'},costco:{title:'Costco parking lot',location:'COSTCO WHOLESALE',description:'Wide-open bays. Long, icy slides.',number:'02'},svitlodarsk:{title:'Svitlodarsk',location:'SVITLODARSK · UKRAINE',description:'Town streets, courtyards & reservoirs.',number:'03'}};
@@ -10,7 +10,7 @@ export default function Home(){
  const [ready,setReady]=useState(false),[started,setStarted]=useState(false),[paused,setPaused]=useState(false),[muted,setMuted]=useState(false),[error,setError]=useState('');
  const [map,setMap]=useState<MapId>('coast');
  const [hud,setHud]=useState({speed:0,score:0,combo:0,angle:0,drifting:false,x:0,z:0,yaw:0});
- useEffect(()=>{try{game.current=createGame(mount.current!,setHud,(p:boolean)=>setPaused(p));setReady(true)}catch(e){setError('The 3D renderer could not start. Please open this game in a browser with WebGL enabled.')}return()=>game.current?.dispose()},[]);
+ useEffect(()=>{let cancelled=false;void import('./race').then(({createGame})=>{if(cancelled)return;game.current=createGame(mount.current!,setHud,(p:boolean)=>setPaused(p));setReady(true)}).catch(()=>{if(!cancelled)setError('The 3D renderer could not start. Please reload in a browser with WebGL enabled.')});return()=>{cancelled=true;game.current?.dispose()}},[]);
  const choose=async(id:MapId)=>{setReady(false);setError('');try{await game.current?.selectMap(id);setMap(id)}catch{setError('The town could not load. Please select it again to retry.')}finally{setReady(true)}};
  const menu=()=>{game.current?.menu();setStarted(false);setPaused(false)};
  const start=()=>{game.current?.start();setStarted(true);setPaused(false)};
