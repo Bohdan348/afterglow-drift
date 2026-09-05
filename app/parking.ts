@@ -33,8 +33,8 @@ export function createParking(){
 }
 
 // Resolve a circle against expanded rectangles, including corner and overlap cases.
-export function parkingCollision(x:number,z:number,vx:number,vz:number,obstacles:Obstacle[]){
- let hit=false;const radius=2.3;
+export function parkingCollision(x:number,z:number,vx:number,vz:number,obstacles:Obstacle[],radius=2.3){
+ let hit=false;
  const reflect=(nx:number,nz:number)=>{const outward=vx*nx+vz*nz;if(outward<0){vx-=nx*outward*1.3;vz-=nz*outward*1.3}hit=true};
  if(x < -178){x=-178;reflect(1,0)}if(x>178){x=178;reflect(-1,0)}if(z < -185){z=-185;reflect(0,1)}if(z>183){z=183;reflect(0,-1)}
  for(const o of obstacles){const left=o.x-o.hx-radius,right=o.x+o.hx+radius,top=o.z-o.hz-radius,bottom=o.z+o.hz+radius;if(x>left&&x<right&&z>top&&z<bottom){const distances=[x-left,right-x,z-top,bottom-z];const side=distances.indexOf(Math.min(...distances));if(side===0){x=left;reflect(-1,0)}else if(side===1){x=right;reflect(1,0)}else if(side===2){z=top;reflect(0,-1)}else{z=bottom;reflect(0,1)}}}
