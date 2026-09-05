@@ -1,7 +1,10 @@
 {
-  "name": "sites-project",
-  "version": "0.1.0",
+  "name": "afterglow-drift",
+  "version": "1.0.0",
+  "description": "AFTERGLOW — a cinematic coastal drift racing desktop game",
+  "author": "Afterglow Drift Club",
   "private": true,
+  "main": "electron/main.cjs",
   "engines": {
     "node": ">=22.13.0"
   },
@@ -9,8 +12,61 @@
     "dev": "vinext dev",
     "build": "vinext build",
     "start": "wrangler dev --config dist/server/wrangler.json",
+    "electron:dev": "concurrently -k \"vinext dev\" \"wait-on http://localhost:3000 && electron .\"",
+    "electron:build": "vinext build && electron-builder --mac --arm64",
+    "electron:build:dmg": "vinext build && electron-builder --mac dmg --arm64",
     "lint": "oxlint",
     "format": "oxfmt"
+  },
+  "build": {
+    "appId": "com.afterglow.drift",
+    "productName": "AFTERGLOW Drift",
+    "mac": {
+      "category": "public.app-category.games",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "build/icon.icns",
+      "darkModeSupport": true
+    },
+    "dmg": {
+      "title": "AFTERGLOW Drift",
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    },
+    "files": [
+      "dist/client/**/*",
+      "electron/**/*",
+      "build/icon.icns",
+      "!node_modules/**/*",
+      "!dist/server/**/*",
+      "!dist/.openai/**/*",
+      "!release/**/*"
+    ],
+    "directories": {
+      "output": "release"
+    }
   },
   "dependencies": {
     "@base-ui/react": "1.7.0",
@@ -45,12 +101,16 @@
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.2",
     "@vitejs/plugin-rsc": "0.5.26",
+    "concurrently": "^10.0.5",
+    "electron": "^44.2.0",
+    "electron-builder": "^26.15.3",
     "oxfmt": "0.61.0",
     "oxlint": "1.76.0",
     "oxlint-tsgolint": "7.0.2001",
     "tailwindcss": "4.2.1",
     "typescript": "5.9.3",
     "vite": "8.0.13",
+    "wait-on": "^9.1.0",
     "wrangler": "4.92.0"
   },
   "type": "module"
