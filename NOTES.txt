@@ -487,7 +487,48 @@ unclassified, остальные w6 residential), здания/рощи/пруд
 Следующему: E-mobile (адаптив телефонов) — ПОСЛЕ G3 (globals.css/page.tsx заняты G3).
 
 ## G3 — app/page.tsx + globals.css (UI генератора)      статус: DONE (cdp_gen_saved.mjs + cdp_gen_infinite.mjs)
-## G4 — app/race.ts (интеграция генеративной карты)     статус: PENDING
+## G4 — app/race.ts (интеграция генеративной карты)     статус: DONE (cdp_g4_gen_gameplay.mjs + cdp_g4_stream.mjs)
+## Задача C — внутриигровая валюта $ + магазин машин (4 модели)   статус: IN PROGRESS
+Автор: Агент-C
+Согласованный порядок: ШАГ 1 wallet-store.ts (изолирован) → ШАГ 2 конверсия очков→$ в race.ts
+    (НЕ до завершения G5) → ШАГ 3 магазин/GARAGE/SHOP в page.tsx (после G5).
+Файлы: app/wallet-store.ts (мой, готов), app/race.ts + app/page.tsx (ШАГи 2/3, ЖДУТ G5).
+    НЕ трогаю чужие секции/файлы.
+—— ШАГ 1 (DONE, проверено) ——
+• Создан app/wallet-store.ts — изолированный store валюты/владения (по образцу settings-store.ts):
+  ленивый кэш (cache===null → defaults/load), ключ 'afterglow.wallet', SSR-safe, защита от
+  битого JSON. Тип Wallet {cash:number; cars:Record<WalletVehicle,boolean>},
+  WalletVehicle='coupe'|'porsche'|'m8'|'bike' (локальный, без импорта race.ts — чтобы race
+  мог импортировать этот модуль без цикла).
+• API: getWallet(), addCash(n), spendCash(n):boolean, ownCar(id), buyCar(id,price):boolean
+  (+списание, false при нехватке/уже owned), isOwned(id), resetWallet().
+• PRICES: coupe 1500, porsche 6000, m8 9000, bike 3500 (bike в середине диапазона).
+• Coupe owned по умолчанию; cash стартует 0. Экспоzed хук window.__wallet для CDP/тестов.
+• Проверено: npx tsc --noEmit — ЧИСТ (EXIT 0, включая мой файл; глобальная ошибка G4 race.ts(118)
+  к этому моменту уже закрыта). Юнит-тест tools/wallet_test.cjs (transpile esbuild + mock
+  localStorage): дефолты/PRICES/добавление/списание/блок при нехватке/покупка/повторная
+  покупка блокирована/ownCar/отрицательный ввод/дробь/персист после рестарта/коррапт JSON/
+  resetWallet/__wallet — 17/17 PASS.
+—— ШАГ 2 (BLOCKED, ждёт G5) ——
+• Подготовлено (не применялось): конверсия дрифт-очков score→$ по курсу 1$=100 очков при
+  завершении заезда (menu()/pause()/dispose() — актив=false неактивно; грейс). В race.ts score
+  копится в physics() (строка 138: drifting → score+=points), обнуляется в selectMap/
+  selectGenWorld (123/148), persist через emit→HUD. Планирую: import {addCash} из wallet-store
+  наверху; при окончании заезда cash+=floor(score/100), score=0; HUD-хук оставить как есть
+  (emit уже шлёт score; page узнаёт о накопленном из последнего HUD). ФАЙЛ НЕ ТРОГАЛСЯ —
+  G5 ещё PENDING и может править race.ts/page.tsx.
+—— ШАГ 3 (BLOCKED, ждёт G5) ——
+• Подготовлено (не применялось): в page.tsx — GARAGE/SHOP: в карточке CHOOSE CAR показыать
+  цену/BUY/OWNED ✓, баланс $, disabled при нехватке (красная цена); баланс в шапке/футере
+  меню и в HUD; тост «+$N» после заезда; startVehicle выбираем только среди owned
+  (coupe всегда owned). ФАЙЛ НЕ ТРОГАЛСЯ.
+Пересечения с G5: race.ts + page.tsx — оба держит/может править G5. Я НЕ трогаю их до
+    подтверждения DONE G5 в этой секции NOTES (статус G5 сейчас PENDING).
+Хвосты: после G5 → ШАГ 2 (race.ts), затем ШАГ 3 (page.tsx) + tools/cdp_wallet.mjs (CDP: покупка/
+    списание/повторная блокировка/нехватка blocked/конверсия после заезда/персист рестарта/
+    старт на купленной). Мои тестовые файлы tools/wallet_test.cjs (+сгоревший wallet_test.mjs)
+    не коммитятся, как и прочие tools/.
+
 ## G5 — тестер/регрессия фазы генерации                  статус: PENDING
 Автор: один агент выполняет G3 → G4 → G5 ПОСЛЕДОВАТЕЛЬНО (без параллели внутри).
 Цель G3: включить кнопку «Create your own» в page.tsx: оверлей Generate — пресеты
@@ -531,4 +572,85 @@ unclassified, остальные w6 residential), здания/рощи/пруд
   w.data (или loadTownData(w.id) если файл есть); infinite: центр чанков вокруг игрока
   (getChunksAround(seed,cx,cz)), асинхронная догрузка/выгрузка без фризов, makeHeight==worldHeight,
   спавн на дороге, физика (4 колеса + lean), minimap/town-map заменить на gen-миникарту.
+
+—— G4 (реализовано, app/race.ts) ——
+• Импорты из gen-loader.ts: CHUNK, SPACING, generateChunk, chunkKey, worldHeight, loadGenMapData,
+  type GenOptions; TownData via town-data. Добавлен корень genRoot=new T.Group() hidden.
+• Стейт: genWorld{id?,mode:'saved'|'infinite',seed,params,ccx,ccz}, genTowns:Map<'x,z',{x,z,town}>,
+  genSpawn{x,z,yaw}, genQueue[], genBuilding, genQueuedKeys:Set. selectGenWorld добавлен в api-объект
+  (без него hook window.__race.selectGenWorld === undefined — известный симптом).
+• selectGenWorld(w): genWorld=w, откат/облавить; saved → 1 чанк (0,0) town=createTown(data) из
+  w.data/loadGenMapData(w.id) СИНХРОННО; infinite → ensureChunk(0,0) синхронно + ромб radius=2
+  (13 чанков), остальные асинхронно очередью (drainGen в rAF, до N/frame по таймслайсу).
+• updateGenArea (каждые 90 кадров, только infinite): chunkCenter → neededKeys (ромб radius=2),
+  выезд за пределы → ccx/ccz=null (стоп догрузки); disposeChunkTown для не-нужных ключей
+  (удаление group + dispose геометрий/материалов/textures), ensureChunk для новых (dedup по genQueuedKeys).
+• genEntryAt(x,z) — город из genTowns по РЕАЛЬНЫМ bounds (для пола/физики/камеры);
+  groundCollision (ген → town.collide или {hit:false}); groundY (ген → worldHeight(x,z,seed));
+  updateCamera: для saved-gen кламп камеры в РЕАЛЬНЫЕ town.data.bounds (margin 48) — камера не
+  выходит за карту; mm/probe работают по genRoot.children.
+• reset()/loop(): спавн из genSpawn; в loop e.town.update(clock) для каждого чанка + updateGenArea;
+  selectMap/dispose: teardownGen() (очистка стейта+меша) + applyWorldVisibility() (ген-мир скрыт,
+  статичные видны). genActive()=genWorld!==null&&genRoot.visible.
+• Движение/выход на foot работает на ген-террене (groundCollision/groundY-ветки для walking).
+• Правка G3-файла page.tsx (минимум): addGenMap теперь ДЕДУПЛИЦИРУЕТ по id (был дубль карт в
+  реестре при повторной генерации одного seed).
+• Проверки (packaged .app, CDP 9222):
+  - tools/cdp_g4_gen_gameplay.mjs: INFINITE 4242 — спавн (600,150), езда moved=79 speed=209,
+    carY=1.38 (рельеф), replay (PLAY) сброс→(600,150) и езда; SAVED CITY 4242 — спавн (-1458,-1364)
+    mm=-1.78 (внутри города), езда moved=112 speed=145, carY=-1.28; реестр: inf-4242 и
+    generated-map-4242 по 1 экз (дедуп работает); СТАТИЧНАЯ coast после ген: едет, carY=0 — регрессия OK.
+  - tools/cdp_g4_foot.mjs: E выход/ходьба/strafe на ген-мире работают; R→спавн ген (600,150).
+  - tools/cdp_g4_stream.mjs: езда z:150→9772 (8 границ чанков): чанки ДОГРУЖАЮТСЯ на лету
+    (probe на финальной позиции и +1500м дают хиты 139-141), carY следит за рельефом.
+  - Регрессия G3 пройдена (cdp_gen_infinite + cdp_gen_saved — PASS на упакованном .app).
+  - tsc --noEmit чист; npm run build OK; npx electron-builder --mac --arm64 OK.
+• Нюанс для G5: `HANDLING.max` в м/с → HUD speed = v*3.6 (макс ~440 км/ч на прямой) — это норма.
+  Спавн SAVED-карт (generateTown) аналитически в ЦЕНТРЕ карты (bounds симметричны [-sz,sz]),
+  НЕ в [0,1200] — не баг, тест корректировался. Осталось отдельно проверить на G5:
+  «выехать за границу saved» (камера клампится в bounds) и «полный цикл PLAY после restart».
+  G3-файл page.tsx тронут МИНИМАЛЬНО (дедуп addGenMap) — для G5 регрессии статичных карт.
+
+—— G5 (итоговая регрессия; сдача: код+сборка+report) ——
+• Диагностика «не стартует PLAY / не едет» — ВСЁ артефакты CDP-обвязки, багов движка НЕТ:
+  - Клик PLAY раньше готовности движка (ready=false → startGame return) = no-op. Движок boot
+    (~0.5-1c после mount) ждать исх. стартExpr (bonus MAPS в .actions).
+  - Отключённое/перекрытое окно Electron троттлит requestAnimationFrame: loop() race.ts драйвится
+    rAF, физика только active&&!paused; visibilitychange-pause при document.hidden. Фикс-сет:
+    Page.bringToFront + Emulation.setFocusEmulationEnabled(true) (rAF 60-120/1.2s вместо 1) и
+    --disable-backgrounding-occluded-windows --disable-renderer-backgrounding
+    --disable-background-timer-throttling при запуске .app; плюс
+    Object.defineProperty(document,'hidden',{get:()=>false,configurable:true}) (выражение должно
+    вернуть 1, иначе CDP «Object reference chain is too long»).
+  - Radix .map-card = radio: синтетический .click() не даёт onValueChange; нужен настоящий
+    Input.dispatchMouseEvent в центр карточки. ПОВТОРНЫЙ клик по УЖЕ выбранной карте = no-op
+    (onValueChange только при изменении value) — поэтому «PLAY после restart» молча не происходил,
+    а спавн-ассерты проходили по СТАРОМУ window.__hud. Фикс теста: сначала клик другой карты
+    (Sunset Coast), затем ген-карты, каждый раз проверяя возврат .menu-bg.
+  - until()/ev() ждут ВЫРАЖЕНИЕ-строку, не функцию — функция в Runtime.evaluate даёт
+    CDP «Invalid parameters».
+  - Сигнал старта игры: в .actions появляется кнопка MAPS (PLAY/драйв-бар живут стабильно).
+• tools/cdp_g5_static.mjs — 16/16 PASS на packaged .app (зить: spawn, дорога, no-clip probe,
+  езда/физ torque, air, спидометр, футаж, T/тюнинг, телепорт, 2-й город, pause, menu, restart,
+  RESTART-live, settings, консоль чиста). Det check tools/g5_det_check.ts — generateSaved
+  детерминирован, spawn (-1458,-1364), время ~72 мс (для saved, city=0.75).
+• tools/cdp_g5_saved.mjs — 0 FAIL (полный цикл после fresh restart): реестр персист;
+  engine-ready PLAY стартует ПЕРВЫЙ раз и спавнит saved-gen (-1458,-1364); карточки закрывают
+  overlay; PLAY после restart реально рестартит (спавн -1418,-1274 ← выбранный saved); езда
+  moves; ВЫЕЗД ЗА ГРАНИЦУ saved: car (-2126,-1251) за |x|>2000, mm finite, carY>=mm-1 (без
+  sink/NaN), speed 434, управление работает (yawDelta 1.74, движение). Критерий «probe []» НЕВЕРНЫЙ:
+  __probe всегда даёт >=1 (дорога/земля ген-мира достают дальше bounds) — использовать позицию
+  за |x|>2000/|z|>2000. Консоль 0 ошибок/варнов.
+  NOTE-тест: каждый cdp_g5_*.mjs — на СВЕЖЕМ .app (pkill+open). Подряд на одном инстансе: 
+  последняя выбранная карта предыдущего сценария (wurzburg) остаётся запускной по умолчанию,
+  «engine-ready PLAY spawns on saved gen» читает чужой спавн (напр. -2208,-1523) — контаминация
+  состояния, не баг движка (на fresh -1458,-1364 ровно).
+• Pixel check (tools/pixelcheck.py): экономики 0 дыр НЕТ — доказ. метрика skyLikeBottom60 на
+  светлых open-field кадрах ФАЛС-позитив (солнце/дымка на горизонте: row-макс на y~61% высоты,
+  цвет 243,242,233 ярче реального неба lum 173; в нижних 25% кадра sky-like 0.38%; текстуры
+  stdev 15-23 — не плоско). Green 38-58% PASS. На бетонной карте sky 0.23% PASS / green 1.33%
+  (утилитарный профиль). Документированное ограничение метрики: horizon-haze/glare триггерит
+  порог <0.5% на open-field картах — это НЕ дыра рендера.
+• Итог G5: tsc чисто, build OK, electron-builder --mac --arm64 OK (dmg+zip в release/).
+  Код страницы НЕ менялся в этой фазе (правки только в tools/).
 

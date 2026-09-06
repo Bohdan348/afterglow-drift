@@ -50,7 +50,7 @@ const [genMode,setGenMode]=useState<'saved'|'infinite'>('saved');
 const [genName,setGenName]=useState('');
 const isGen=(id:string)=>genMaps.some(g=>g.id===id)||id.startsWith('gen-')||id.startsWith('inf-');
 const meta=(sel:string)=>{const st=maps[sel as MapId];if(st)return st;const i=genMaps.findIndex(g=>g.id===sel);if(i>=0)return genMetaF(genMaps[i],i);return maps.coast};
-const addGenMap=(g:GenMap)=>{const l=[...genMaps,g];setGenMaps(l);saveGenRegistry(l)};
+const addGenMap=(g:GenMap)=>{const l=[...genMaps.filter(x=>x.id!==g.id),g];setGenMaps(l);saveGenRegistry(l)};
 const applyPreset=(p:keyof typeof PRESETS)=>{setGenPreset(p);setGenForest(PRESETS[p].forest);setGenField(PRESETS[p].field);setGenCity(PRESETS[p].city)};
 const chooseMap=async(id:string)=>{setReady(false);setError('');setMap(id);try{localStorage.setItem(MAP_KEY,id)}catch{}if(!isGen(id)){try{await game.current?.selectMap(id as MapId)}catch{setError('The town could not load. Please select it again to retry.')}}setReady(true);setScreen(null)};
 const createGenMap=async()=>{
