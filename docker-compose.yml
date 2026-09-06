@@ -1,0 +1,10 @@
+services:
+  afterglow-drift:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: afterglow-drift:latest
+    container_name: afterglow-drift
+    ports:
+      - "8080:80"
+    restart: unless-stopped

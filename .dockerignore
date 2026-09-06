@@ -1,0 +1,11 @@
+node_modules
+dist
+.next
+release
+tools
+.git
+.gitignore
+Dockerfile
+docker-compose.yml
+*.log
+.DS_Store
