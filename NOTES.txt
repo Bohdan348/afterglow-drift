@@ -529,7 +529,7 @@ unclassified, остальные w6 residential), здания/рощи/пруд
     старт на купленной). Мои тестовые файлы tools/wallet_test.cjs (+сгоревший wallet_test.mjs)
     не коммитятся, как и прочие tools/.
 
-## G5 — тестер/регрессия фазы генерации                  статус: PENDING
+## G5 — тестер/регрессия фазы генерации                  статус: DONE (cdp_g5_static/saved + pixelcheck)
 Автор: один агент выполняет G3 → G4 → G5 ПОСЛЕДОВАТЕЛЬНО (без параллели внутри).
 Цель G3: включить кнопку «Create your own» в page.tsx: оверлей Generate — пресеты
   (Default/Forest/Plains/City), Advanced (слайдеры Лес/Поле/Город + сид/random), переключатель
@@ -653,4 +653,45 @@ unclassified, остальные w6 residential), здания/рощи/пруд
   порог <0.5% на open-field картах — это НЕ дыра рендера.
 • Итог G5: tsc чисто, build OK, electron-builder --mac --arm64 OK (dmg+zip в release/).
   Код страницы НЕ менялся в этой фазе (правки только в tools/).
+
+## Задача Z — удаление СОЗДАННЫХ игроком (генеративных) карт      статус: DONE (tools/cdp_delmap.mjs, 36/36 PASS)
+Автор: агент Z
+Файлы: ТОЛЬКО app/page.tsx + минимально app/globals.css (стили кнопки удаления .gen-del).
+    НЕ трогать race.ts / gen-loader.ts / gen-town.ts / settings-store.ts / town-minimap.tsx.
+Контекст: реестр ген-карт localStorage 'afterglow.genmaps' (loadGenRegistry/saveGenRegistry,
+    тип GenMap), MAP_KEY 'afterglow.map', loadMap(); ген-карточки в оверлее CHOOSE MAP рендерятся
+    отдельным map() по genMaps (тег GEN/INF), статичные maps (coast/costco/svitlodarsk/wurzburg) — НЕ трогаем.
+—— Задача Z (реализовано) ——
+• page.tsx: deleteGenMap(id,e): preventDefault+stopPropagation (клик по ✕ НЕ выбирает карту и НЕ
+  закрывает оверлей), удаляет из genMaps + saveGenRegistry(); если удаляемая === выбранной map —
+  setMap('coast') + запись MAP_KEY='coast' (без кругова на race: selectMap/selectGenWorld НЕ вызываются,
+  движок в меню неактивен). PLAY при этом использует реестр (startGame: genMaps.find → miss → selectMap('coast')).
+• page.tsx: в ген-карточках (map по genMaps) добавлена кнопка <button type="button" class="gen-del"
+  aria-label="Delete <name>">✕</button>; сам лейбл получил класс 'gen-card'. Статичные карточки НЕ изменены —
+  кнопка есть только у ген-карт.
+• globals.css: .gen-card{position:relative}; .gen-card .map-tag{margin-right:36px} (обтекание, без
+  наложения на ✕); .gen-del — абсолют, угол карточки 8×8, 28×28px, лаймовый крестик, hover-подсветка,
+  cursor:pointer, active scale(.94), z-index:1. @media(max-width:600px): ✕ 34×34px (>28 touch-area E-mobile),
+  топ-правый 6×6, tag margin 44px.
+• ИСТОЧНИК ИСТИНЫ = реестр: deleteGenMap не трогает /maps/*.json (в браузере файлы и не пишутся);
+  PLAY генерирует сохранённые карты детерминированно из seed из РЕЕСТРА (startGame) — удалённая карта
+  после удаления не пересоздаётся (проверено CDP: PLAY после удаления стартует coast).
+• CDP tools/cdp_delmap.mjs (packaged .app, CDP 9222, Page.bringToFront + focus):
+  - PART1: изначально 4 статичные карточки без ✕; после генерации saved — 1 ген-карточка с ✕,
+    статичные без; реальный pointer-клик по ✕ (Input.dispatchMouseEvent по центру, десктоп) удаляет
+    карту, оверлей остаётся открытым (CHOOSE MAP), назад в меню.
+  - PART2: удаление ВЫБРАННОЙ (infinite) карты → выбор сброшен на coast (карточка Coastline selected,
+    MAP_KEY='coast'); reload → реестр пуст, coast персистится, ✕ нигде нет.
+  - PART3: PLAY после удаления сохранённой карты → старт на coast (sub 'Selected map · Coastline
+    circuit'), удалённая карта не пересоздана, MAP_KEY coast.
+  - PART4: 375×667 (Emulation mobile) — ✕ в пределах viewport и угла карточки (не выходит за неё),
+    34×34px, elementFromPoint в центре = сам ✕ (без наложения), клик → карточка удаляется, оверлей открыт.
+  - Итог: 36 PASS / 0 FAIL. Примечание среды: под touch-CD: emulation Input.dispatchMouseEvent упирается
+    в таймаут — фолбэк на JS-клик (классифицировано, hit-target доказан elementFromPoint).
+• Проверка сборки: npx tsc --noEmit ЧИСТ (exit 0); npm run build OK; npx electron-builder --mac --arm64 OK
+  (release/*.dmg+zip). .app с этими правками оставлен запущенным на 9222.
+Проверить следующему: C (валюта/магазин) после G5 — page.tsx/globals.css свободны (мои правки коммичены);
+  глобальная регрессия статичных карт не затронута (✕ только у .gen-card). Хвосты: 320px-крайний случай
+  тем же тестом (✕ 34px в угол влезает); на реальных touch-устройствах Кейс pointer:coarse.
+Коммиты: backup-z-pre (06250a0) → feature (см. git log).
 
