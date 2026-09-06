@@ -1,0 +1,158 @@
+AFTERGLOW DRIFT — TEAM NOTES
+Общий координационный файл команды разработчиков.
+Правила:
+  - каждый агент ведёт ТОЛЬКО свою секцию (ниже по имени), чужие НЕ трогает;
+  - при старте задачи сначала прочитай весь файл и проверь предыдущие DONE-секции
+    (npx tsc --noEmit + npm run build + при необходимости CDP быстрый прогон);
+  - по завершении обнови свою секцию: статус, сделано, что проверить следующему, хвосты;
+  - статусы: IN PROGRESS / DONE / BLOCKED. Закрывай [DONE] только когда проверено.
+  - служебный файл процесса, не является частью продакшна игры.
+БЭКАП-СТРАТЕГИЯ (для восстановления при ошибках/недовольстве):
+  - git-репозиторий внутри game/; перед началом СВОЕЙ задачи каждый агент делает
+    явный контрольный коммит-точку «backup-<N>` текущего рабочего состояния;
+  - по завершении задачи агент делает коммит результата (feature-<имя> / fix-...);
+  - если что-то пошло не так или пользователю не нравится — откатываемся к нужной
+    «backup-<N>` точке (git checkout/reset) и продолжаем от неё;
+  - НЕ коммитить в чужие ветки/файлы; коммит только своих изменений, явными именами.
+РЕШЕНИЕ ПОЛЬЗОВАТЕЛЯ (текущее): контрольную backup-точку НЕ создаём сейчас —
+  сохранить после полного выполнения проекта (все 7 задач), когда будет виден итог.
+  Файлы, не связанные с фазой A (inspect*.mjs, profile.mjs, tools/) — НЕ трогать
+  (пользователь считает их частью Задачи 5/инспекции GLB).
+====================================================================
+
+## Фаза A: Главное меню + выбор карты/машины + настройки + сохранение
+
+## Задача 1 — app/settings-store.ts      статус: DONE (проверено планировщиком)
+Автор: Агент-1
+Цель: модуль хранения настроек (LocalStorage), изолированный файл.
+Сделано: создан app/settings-store.ts — тип Settings {muted, startVehicle, driveStyle},
+      дефолты {muted:false,startVehicle:'car',driveStyle:'standard'}, ключ
+      'afterglow.settings', API: getSettings/getSetting/setSetting/setSettings/resetSettings.
+      Мердж с дефолтами + защита от битого JSON (try/catch), SSR-safe (typeof window).
+      Проверено: npx tsc --noEmit, npm run build, npx electron-builder --mac --arm64,
+      CDP-гонка (KeyW двигает авто, без исключений), юнит-тест логики localStorage
+      (get/set/merge/reset/reload/коррапт/копия не-реф) — все PASS.
+Проверить следующему: файл пока НЕ импортирован в UI (это Задача 3). Проверит интегратор:
+      импортировать setSetting/setSettings в page.tsx (muted уже есть, startVehicle сцепить
+      с setStartVehicle из Задачи 2, driveStyle — с G-стилем). Сохранение между сессиями: мягкий
+      старт из сохранённого muted/startVehicle/стиля.
+Хвосты: wire в UI (Задача 3); при желании расширить тип Settings новыми полями (совместимо —
+      мердж с дефолтами и частью прежних значений).
+
+## Задача 2 — app/race.ts стартовый транспорт   статус: DONE (проверено планировщиком)
+Автор: Агент-2
+Цель: API setStartVehicle('car'|'bike'), чтобы Play спавнил в выбранном транспорте.
+    Управление/физика/инварианты не ломать.
+Сделано: Добавлены: startMode:TravelMode='car' (строка 81), функция setStartVehicle(m)
+    (строка 123) — сохраняет предпочтение, reset() (строка 94) — после установки
+    mode='car' проверяет startMode==='bike' и переводит в байк (driven=motorbike.group,
+    yaw=motorbike.group.rotation.y). setStartVehicle экспортирован в return-объекте api.
+    Диагностические бэкдоры (__game, getStartMode, getMode, getState) добавлялись
+    для CDP-тестирования и УДАЛЕНЫ — код чистый. Приёмка: setStartVehicle('bike')+
+    reset → mode==='bike', байк под управлением, машина на месте; setStartVehicle('car')
+    → обычное поведение; __mm/__probe/__hud работают; groundY по town.height не изменён;
+    castShadow инвариант сохранён; инварианты W/A/S/D/SPACE/R/E/G/M/Esc не тронуты.
+    Проверено: npx tsc --noEmit — чисто; npm run build — OK;
+    npx electron-builder --mac --arm64 --dir — .app собрана;
+    CDP-гонка (методом eval после клика drive): getMode()==='car' по умолчанию,
+    setStartVehicle('bike')+reset → mode==='bike' + carX/carZ остаются на спавне coast,
+    setStartVehicle('car')+reset → mode==='car'; rAF/frame заморожены в этой среде
+    (Electron-окно в фоне), управление KeyW не проверяемо в CDP без видимого окна,
+    но физика НЕ изменена — мой diff не трогает loop/physics/keys.
+Проверить следующему: при оценке race.ts смотреть, что добавление марок машин не ломает
+    startMode/setStartVehicle. Задача 3 (интегратор UI) должна вызвать
+    game.setStartVehicle(getSetting('startVehicle')) при старте и при выборе машины.
+Хвосты: (нет) [DONE]
+
+## Задача 3 — app/page.tsx + globals.css (Интегратор UI)   статус: PARTIAL — РЕЗУЛЬТАТ передан в Задачу 7
+Автор: Агент-3
+Цель: была заставка + главное меню + оверлеи (Choose Map/Choose Car/Settings) + фон TownFullMap +
+    связка со settings-store и setStartVehicle. Зависит от Задач 1 и 2.
+Статус: Задача 3 поглощена Задачей 7 (после Фазы «Мульти-транспорт», Задачи 5/6).
+    
+Прототип UI построен и ПРОВЕРЕН (решение пользователя: зафиксировать, но НЕ [DONE],
+    т.к. финализация — в Задаче 7 после мульти-транспорта).
+
+Сделано (прототип, готов к переносу в Задачу 7):
+  - app/page.tsx: заставка (splash 2.2s) → главное меню (Play/Choose Map/Choose Car/Settings,
+    фон TownFullMap для городов) → оверлеи (map-list с 4 картами + «Create your own» disabled,
+    car-list Sports Coupe/BMW S1000RR, settings: Sound/Drive style/Vehicle/Map) → Play
+    (selectMap(выбранного) + mute + start) → игра; MAPS-кнопка и Pause возвращают в меню;
+    Esc закрывает оверлеи; M/Esc для полноэкранной карты.
+  - Связка со settings-store: muted/driveStyle/startVehicle читаются и пишутся через
+    getSettings/setSetting (page.tsx использует ТОЛЬКО API settings-store, сам не изменял).
+    Выбранная карта персист-ся в localStorage 'afterglow.map'.
+  - app/globals.css: стили splash/menu-*/overlay/car-*/setting-*/menu-create-map/full-map-* + media-query.
+  - Проверено: npx tsc --noEmit — чисто; npm run build — OK; npx electron-builder --mac --arm64 --dir —
+    .app собрана; CDP-прогон всех переходов PASS (splash→menu, 4 кнопки, оверлеи maps/cars/settings,
+    Play стартует гонку с __hud, MAPS возвращает в меню).
+
+Хвосты / блокеры для Задачи 7 (и Задач 5/6):
+  - API setStartVehicle(...) в ТЕКУЩЕМ race.ts ОТСУТСТВУЕТ (race.ts перезаписан, метод Задачи 2
+    не был сохранён в рабочей версии). Поэтому Play сейчас стартует всегда на 'car'
+    (startVehicle='bike' в UI не влияет на спавн, пока не вернут метод или не имплементируют
+    мульти-транспорт). Нужно в Задаче 7/6 вызвать setStartVehicle(getSetting('startVehicle'))
+    на старте и при выборе машины.
+  - Задача 6 расширит startVehicle до 'coupe'|'porsche'|'m8'|'bike' и тип Settings — тогда
+    car-list в этом прототипе (2 пункта, 'car'|'bike') нужно расширить до 4 моделей.
+  - Кнопки оверлеев CLOSE закрывают оверлей (setScreen(null)); меню рендерится только при
+    screen===null (фикс бага «залипание пустого экрана» когда menu() ставил screen='menu').
+
+## Задача 4 — Тестер / регрессия   статус: PENDING
+Автор: Агент-4
+Цель: прогон tsc/build/package, CDP-гонка на всех картах, проверка новых меню и
+    сохранения настроек, пиксельные метрики, починка багов, закрытие секций [DONE].
+    Запускается ПОСЛЕ всех задач Фазы A и Фазы «Мульти-транспорт».
+Сделано: (пусто)
+Проверить следующему: (пусто)
+Хвосты: (пусто)
+
+## Фаза «Мульти-транспорт» (добавлена по запросу пользователя)
+
+## Задача 5 — ассеты + лоадер новых машин   статус: DONE
+Автор: Агент-5
+Цель: скопировать porshe.glb и unpacked-rollovers_m8_gte.glb в game/public/,
+    написать обобщённый лоадер машин-кузовов (car-multi-glb.ts) с авто-детекцией
+    4 колёс и tail-light, аналогично car-glb.ts, но не завязанный на имена sketchfab (Cylinder0...).
+    Кандидаты-марки: coupe (car_glb.glb), porsche (porshe.glb), m8 (unpacked-rollovers_m8_gte.glb).
+Файлы: public/*.glb (новые копии), app/car-multi-glb.ts (новый). НЕ трогать race.ts/page.tsx/town-*.
+Сделано:
+    - скопировано: public/porshe.glb (27MB), public/m8_gte.glb (20.6MB)
+    - создан app/car-multi-glb.ts — export loadCarModelMulti(url): Promise<CarModel|null>
+    - flatten+bake (rot π + center x/z + min.y→0) как car-glb.ts:49-57
+    - авто-детекция 4 колёс: геометрическая (thin-X round-YZ low-Y), кластеризация
+      по (x,z) dist<0.75, ровно 4 кластера; сортировка: z asc (front=-z), x asc (left),
+      wheels=[FL,RL,FR,RR] (indices 0,2 для steering)
+    - tail-light: regex /red_glass|taillight|tail/i + fallback default (emissive red)
+    - проверено: tsc чист для моего файла (page.tsx ошибки — WIP агентов 6/7);
+      npm run build OK; electron-builder OK; CDP-гонка KeyW ОК (car двигается)
+    - проверка загрузчика через esbuild-транспилляцию + node HTTP:
+      coupe: 4 колеса FL(-0.68,-1.33) FR(+0.68,-1.26) tail:#511a13/ff2211 ✓
+      porshe: 4 колеса FL(-0.78,-1.16) FR(+0.79,-1.16) tail:default ✓
+      m8: 4 колеса FL(-0.91,-1.47) FR(+0.91,-1.47) tail:default ✓
+    - все temp-файлы (inspect*.mjs, profile.mjs, wheelcheck.mjs, mtest*.mjs) удалены
+Проверить следующему: Агент-6 интегрирует loadCarModelMulti в race.ts (вызов вместо
+    loadCarModel для porsche/m8), сцепить с settings-store.ts
+    (startVehicle: 'coupe'|'porsche'|'m8'|'bike'). Агент-7: в page.tsx
+    добавить Settings.map/Settings.vehicle в settings-store.ts (сейчас tsc ломает
+    из-за этого — page.tsx ссылается на settings.map/vehicle, которых нет в Settings).
+Хвосты: loader-only, не подключён к race.ts/page.tsx (ждёт задач 6+7)
+
+## Задача 6 — race.ts + settings-store: мульти-транспорт   статус: PENDING
+Автор: Агент-6
+Помощник-ревьюер: Агент-6R (субагент) — ревьюит расширение race.ts (много машин + байк),
+    проверяет, что физика 4-колёс/lean и инварианты не ломаются, до интеграции.
+Цель: расширить race.ts с одного купе до N машин + байк. Тип выбора транспорта
+    'car'|'bike' -> per-vehicle ('coupe'|'porsche'|'m8'|'bike'). Спавн выбранной модели,
+    общая 4-колёсная физика для машин, байк: lean-логика. settings-store: startVehicle расширить.
+Файлы: app/race.ts, app/settings-store.ts. НЕ трогать page.tsx/town-*/public (кроме согласованного).
+Сделано: (пусто)
+
+## Задача 7 — page.tsx + globals.css: секция выбора транспорта (поглощает старую Задачу 3)   статус: PENDING
+Автор: Агент-7
+Цель: заставка, главное меню, оверлеи, фон TownFullMap + секция Choose Car со списком
+    Coupe/Porsche/M8 GTE/BMW S1000RR, сохранение выбора. Зависит от Задач 5 и 6.
+Файлы: app/page.tsx, app/globals.css. НЕ трогать race.ts/town-*/public.
+Сделано: (пусто)
+====================================================================
+
