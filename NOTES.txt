@@ -228,6 +228,47 @@ AFTERGLOW DRIFT — TEAM NOTES
     оставить (безвредно) или убрать в рамках B, НЕ обязательно. U1/U2/T2 закрыты.
 Хвосты: нет. tools/cdp_groupA.mjs — новый служебный тест (не коммитится, как и остальные tools/).
 ====================================================================
+
+## E-mobile — адаптив под телефоны/планшеты      статус: DONE (tools/cdp_mobile.mjs, 68/68 PASS)
+Автор: агент E-mobile (ветка «Эксплуатация», подветка мобильный адаптив).
+Файлы: app/globals.css (основная работа) + NOTES.txt; при необходимости минимальная правка
+    app/page.tsx (пока не понадобилась — viewport уже есть от Next по умолчанию). НЕ трогает race.ts/
+    gen-loader.ts/gen-town.ts.
+Задача: узкие экраны (телефоны 320–430px, планшеты 768px) без поломки десктопа 1440+.
+Референс: viewport-мета уже инжектится Next (width=device-width,initial-scale=1 в dist/client/index.html),
+    layout.tsx не трогаем. HUD мини-карта .town-map и HUD-элементы под ужимание.
+—— E-mobile (реализовано) ——
+• globals.css (добавлен блок в конец): общие html,body{max-width:100%;overflow-x:hidden;
+  overscroll-behavior:none} + button,input{touch-action:manipulation} (защита от зума/горизонт. скролла).
+• @media(max-width:600px) — телефоны:
+  - header: wrap, padding 16×14, brand 15px; actions-кнопки 9px.
+  - меню: .menu-content в колонку (justify-content:flex-start + overflow-y:auto — без обрезания сверху
+    при скролле), .menu-left скрыт (телефон), .menu-right 100% ширины, кнопки .menu-btn ≥44px высота.
+  - overlay: padding 70×14, head wrap; карточки .map-card/.car-card ужаты без обрезания; body скролл.
+  - генератор: .gen-presets auto-fill minmax(150px,1fr) — сам даёт 1 колонку на 320 и 2 на 375+ (проверено
+    cols=2 на 375); .gen-slider в 2 ряда (label+val сверху, range на всю строку), .gen-seed wrap,
+    .gen-mode в колонку, .gen-name label/input на всю ширину, .gen-create (GENERATE & PLAY) на всю
+    ширину кнопка ≥44px; все toggle/mode/random ≥44px.
+  - HUD: .speed 118px (цифры 50px), .course-top компактный, .score и .town-map прижаты к противоположным
+    углам без перекрытия (мини-карта 104px), footer в границах, .interaction ширина 100% кнопка ≤320px,
+    .pause-overlay/.full-map-open компактные, touch-кнопки 52×52 по краям.
+• @media(min-width:601px) and (max-width:900px) — планшеты: компактные header/меню/overlay, footer,
+  score, мини-карта.
+• Десктоп 1440+ НЕ затронут (правила только внутри медиа-запросов) — проверено вычисленными стилями.
+• CDP-проверка (tools/cdp_mobile.mjs, упакованный .app, Emulation.setDeviceMetricsOverride):
+  - 375×667 (mobile, pointer:coarse): меню/оверлей/generator/HUD — 0 горизонтального скролла,
+    ничего не обрезано, кнопки кликабельны, KeyW-гонка (__hud.speed≈101) — 10/10 блок PASS.
+  - 768×1024: меню-колонка с видимым .menu-left, карточки/gen влезают — всё PASS.
+  - 1440×900 (десктоп): .menu-content row, .menu-right min-width 340, header padding 32/42,
+    presets 4 колонки, slider колонка 90px/1fr/48px, overlay padding 120px — вид прежний, PASS.
+  Итог: 68 PASS / 0 FAIL.
+• tsc --noEmit: НЕ чист ГЛОБАЛЬНО — 2 ошибки в app/race.ts(118) «types 'true' and 'false''» — это WIP
+  G4 (ген-чанки, появлялся в working tree ПОСЛЕ backup-коммита); файл вне зоны E-mobile, не трогается.
+  npm run build проходит (Vinext не падает на этих type-ошибках), упаковка electron-builder --mac
+  --arm64 успешна, CDP прогнан на упакованном .app.
+Проверить следующему: глобальный tsc прояснит/починит G4 (его блокирует). CDP-инстанс .app оставлен
+    на 9222 (с моим CSS). Хвосты: 320px-крайний случай проверяется тем же тестом (gen-presets даст
+    1 колонку); tools/cdp_mobile.mjs не коммитится (как и прочие tools/).
 Автор: Агент-4
 Цель: прогон tsc/build/package, CDP-гонка на всех картах, проверка новых меню и
     сохранения настроек, пиксельные метрики, починка багов, закрытие секций [DONE].
