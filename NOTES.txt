@@ -869,7 +869,7 @@ Both GLB self-contained (textures embedded).
 
 ====================================================================
 
-## Задача V1 — публикация игры в интернет через Vercel (GitHub-import, Hobby)   статус: IN PROGRESS
+## Задача V1 — публикация игры в интернет через Vercel (GitHub-import, Hobby)   статус: DONE (прод https://afterglow-drift.vercel.app)
 Автор: агент V1 (промпт от планировщика).
 Решение пользователя (подтверждено): Вариант 1 — Vercel через GitHub-import; репо ПУБЛИЧНЫЙ;
     домен бесплатный https://<proj>.vercel.app; аккаунты GitHub и Vercel у пользователя ЕСТЬ.
@@ -912,4 +912,40 @@ Both GLB self-contained (textures embedded).
      но CARS держит race.ts/page.tsx/wallet-store.ts), хвосты. Коммит результата «feature-v1-vercel».
 Координация: V1 и CARS ПАРАЛЛЕЛЬНЫ (инфраструктурные файлы vs app/). V1 НЕ трогает файлы CARS.
     После V1: автодеплой Vercel будет на каждый push main — все фиче-коммиты уйдут в прод сами.
+—— V1 (реализовано, принято пользователем; desktop-геймплей подтверждён) ——
+• ПРОД: https://afterglow-drift.vercel.app (проект Vercel «afterglow-drift», Hobby) ·
+  GitHub репо: https://github.com/Bohdan348/afterglow-drift (PUBLIC, мain).
+• Деплой: Vercel New Project → Import GitHub (репо Bohdan348/afterglow-drift). Поля подтянулись из
+  vercel.json: Framework Preset «Other», Build «npm run build», Install «npm install», Output
+  «dist/client»; Node.js 22.x (engines >=22.13 в package.json). Deploy зелёный. Автодеплой на push main активен.
+• git: репо создан через gh CLI (установлен/авторизован device-flow, аккаунт Bohdan348);
+  gh repo create afterglow-drift --public --source . --remote origin --push (push ~260М прошёл,
+  только warning про >50МБ — ниже лимита 100МБ GitHub). tools/ и tsconfig.tsbuildinfo в push НЕ попали.
+• Файлы: .gitignore дополнен (/tools/, /.vercel/, tsconfig.tsbuildinfo, *.dmg, *.zip,
+  builder-debug.yml, zir3jUqF/), tsconfig.tsbuildinfo снят с трекинга; vercel.json добавлен.
+  Снимок: CARS-ассеты на момент пуша (bmw_m4_gte.glb 53М, ford_mustang.glb 70М) — в репо/деплое
+  есть, в игре не используются до ШАГ B.
+• Headers-факты (curl): всё HTTP/2 200 + accept-ranges: bytes; Cache-Control: public, max-age=0,
+  must-revalidate (дефолт Vercel — vinext _headers/Cache-Control immutable для /_next/static на
+  Vercel НЕ применяется, это Cloudflare-Pages-конвенция); content-type корректные
+  (text/html, application/javascript, application/json, model/gltf-binary); размеры байт-в-байт
+  совпадают с локальными: car_glb.glb 71246976 (ОТДАЁТСЯ, 71МБ — пункт BLOCKED про >50МБ НЕ сработал),
+  ford_mustang.glb 70255496, bmw_m4_gte.glb 53107960; /maps/svitlodarsk.json 387875, /maps/wurzburg.json 3178557.
+• Проверки: / → 200; maps → 200; desktop Chrome: PLAY на Coast, W едет, HUD speed>0, minimap жив,
+  console чистая — подтверждено пользователем на реальном Chrome.
+• Tails (mobile, РЕАЛЬНОЕ устройство — нужна НОВАЯ задача для агента с доступом к app/**):
+  1) Карта Светлодарск на телефоне: сначала грузятся «старые» модели, затем при попытке загрузки
+     «обновлённых» — страница перезагружается/вылетает с ошибкой сайта. Диагностику делать на
+     реальном устройстве (в эмуляции может не воспроизводиться); вероятно память/перезагрузка
+     мобильного браузера на тяжёлой сцене.
+  2) Touch-управление «стрелки» неудобно: нажатие выделяет/пытается копировать текст, нет внятного
+     «назад» (съезжает вправо). Пользователь предлагает: гироскоп (наклон), круглый мини-джойстик
+     на экране или свободное сенсорное управление вперёд/назад/влево/вправо. Файлы (page.tsx/
+     globals.css/race.ts) ЗАНЯТЫ CARS — координировать.
+• Примечание среды V1: агент не может читать скриншоты (нет image-input) и водить браузер
+  (Chrome JS-from-AppleEvents выключен, System Events заблокирован) → браузерные шаги (авторизация
+  Github device-flow, импорт в Vercel, геймплей-проверки) выполнял ПОЛЬЗОВАТЕЛЬ по инструкциям;
+  CLI-часть (gh, репо, push, curl-проверки) — агент.
+• Коммиты: backup-v1-pre (ab2b6be) → feature-v1-vercel (bf19466 vercel.json + ea78611 CARS snapshot)
+  → финальный NOTES-DONE.
 
