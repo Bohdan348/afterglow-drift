@@ -1347,7 +1347,7 @@ Both GLB self-contained (textures embedded).
 Временные tools/dbg_ride_flat.mjs, dbg_ride_err.mjs — диагностика, удалить/не коммитить.
 Коммиты: backup-ride → feature-ridepack (app/race.ts + NOTES.txt).
 
-## Задача Econ — перебаланс заработка за дрифт (качество, перекладки, анти-круг)   статус: IN PROGRESS
+## Задача Econ — перебаланс заработка за дрифт (качество, перекладки, анти-круг)   статус: DONE
 Автор: Агент-Econ
 Файлы: ТОЛЬКО app/race.ts + app/page.tsx (подпись в гараже). НЕ трогать town.ts/town-details.ts/
     gen-*/npc.ts/wallet-store.ts/globals.css. Коммит: backup-econ → feature-econ (race.ts, page.tsx,
