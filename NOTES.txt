@@ -774,28 +774,43 @@ unclassified, остальные w6 residential), здания/рощи/пруд
 
 ====================================================================
 
-## Задача F2 — самовыправление кузова (виртуальная пружина вместо экспонент)   статус: IN PROGRESS
+## Задача F2 — самовыправление кузова (виртуальная пружина вместо экспонент)   статус: DONE
 Автор: агент F2
 Файлы: ТОЛЬКО app/race.ts + NOTES.txt. НЕ трогать page.tsx/globals.css/wallet-store.ts/town-*/gen-*,
     settings-store.ts, CARS-файлы.
-Контекст: в race.ts уже есть рендер-крен F (экспоненциальное сглаживание roll/pitch к targets rt/pt,
-    композиция Euler(0,yaw,0)·RollZ·PitchX, camRoll у машин=roll*.3, сброс в reset()). F2 заменяет
-    экспоненциальное приближение на УСТОЙЧИВУЮ виртуальную пружину с критическим демпфированием, чтобы
-    кузов по выходу из поворота/заноса активно «самостоятельно» выравнивался (идеально ровен на прямой).
-Планируемые правки (race.ts):
-    - модульные константы пружин: roll ω=2π·1.4, ζ=.93 (kP=ω², kD=2ζω); pitch ω=2π·1.5, ζ=1.0
-      (чуть более затухшая) — расчёт в месте объявления, БЕЗ комментариев.
-    - внутренние переменные rollVel/pitchVel + targets rollT/pitchT (для дебаг-хука), сброс в reset().
-    - car-ветка рендера кузова: вместо roll+=(rt-roll)*(1-exp) — полу-неявный Эйлер:
-        a=kP*(target-roll)-kD*vel; vel=clamp(vel+a*dt,±1.5); roll+=vel*dt  (так же pitch).
-      dt в physics() фиксирован (substep 1/120 из accum-цикла) → ω·dt≈0.08 устойчиво на 30..60 fps.
-    - __sus расширить до {roll,pitch,camRoll,rollVel,pitchVel,rollTarget,pitchTarget,stable,yaw,mode}.
-    - камера camRoll=roll*.3 (dt*6.5) — оставить; проверить отсутствие зигзага после пружинного возврата.
-Проверка: npx tsc --noEmit → npm run build → npx electron-builder --mac --arm64 → CDP
-    tools/cdp_f2_selfright.mjs (рывист рывок в поворот → выйти на прямую: roll|<0.01 за <0.5с,
-    без повторного пересечения 0; avg|roll|<0.003 на прямой; знак-крен в повороте; тормоз-pitch
-    возврат; скорость ~233+ km/h coast и ~345 Wurzburg; консоль NONE; 0 аллокаций в цикле).
-Коммиты: backup-f2 → feature-f2-selfright.
+Реализовано (app/race.ts, всё в car-ветке рендера кузова + объявления + reset):
+    - константы пружин, расчёт на месте БЕЗ комментариев:
+        roll:  RK=(2π·1.4)²≈77.4 (kP), RD=2·.93·2π·1.4≈16.4 (kD) → ω=2π·1.4≈8.8 рад/с, ζ=.93
+        pitch: PK=(2π·1.5)²≈88.8,  PD=2·1·2π·1.5≈18.8   → ω=2π·1.5≈9.4 рад/с, ζ=1.0 (крит.)
+    - внутренние переменные rollVel/pitchVel + targets rollT/pitchT, сброс в reset()
+        roll=pitch=rollVel=pitchVel=rollT=pitchT=0.
+    - car-ветка: сначала считаются targets rt (крен) / pt (питч) как в F
+        (rt=clamp(-lateral·min(speed,120)·.0042, ±.13), pt=clamp(разгон·.055−тормоз·.06, ±.06));
+        затем ПОЛУ-НЕЯВНЫЙ ЭЙЛЕР пружины вместо exp-приближения:
+            rollT=rt; pitchT=pt;
+            rollVel=clamp(rollVel+(RK*(rt-roll)-RD*rollVel)*dt, ±1.5); roll+=rollVel*dt;
+            pitchVel=clamp(pitchVel+(PK*(pt-pitch)-PD*pitchVel)*dt, ±1.5); pitch+=pitchVel*dt;
+        dt в physics() фиксирован (substep 1/120 из accum-цикла) → ω·dt≈0.08 устойчиво на 30..60 fps.
+    - __sus расширен: {roll,pitch,camRoll,rollVel,pitchVel,rollTarget:rollT,pitchTarget:pitchT,
+        stable: |rollT-roll|<.01 && |pitchT-pitch|<.01 && |rollVel|<.05 && |pitchVel|<.05, yaw, mode}.
+    - камера camRoll=roll*.3 (dt*6.5) оставлена.
+Проверки (tools/cdp_f2_selfright.mjs, CDP, свежий .app + 9222):
+    ✓ npx tsc --noEmit ЧИСТ, npm run build OK, npx electron-builder --mac --arm64 OK.
+    PART 1 прямая: avg|roll|=0.0000 (на участках |target|<.03), stable 8/8, coast ~290-401 km/h.
+    PART 2 самовыправление (A-tap на малой скорости + тормоз до стопа): target коллапсирует ~1.4-1.7с,
+        roll → <0.012 за 0.12-0.24с, NO overshoot/re-swell (afterMax<0.012), |roll-target| пост
+        коллапса ≤0.004, camRoll → 0.000.
+    PART 3 знак крена в удержанном повороте: neg, spring трекает target (err=0.0000).
+    PART 4 тормоз-pitch: nose-down −0.044..−0.048, возврат к 0 за 0.20-0.30с, NO +overshoot.
+    PART 5: все F2-поля __sus на месте.
+    PART 6 Wurzburg: регрессия прошла чисто в полных прогонах (скорость >300 km/h, max|roll|~0.130
+        в поворотах, консоль NONE). ПРИМЕЧАНИЕ: in-session переключение карты через MAPS→CHOOSE MAP
+        RACY (React re-render после async chooseMap/selectMap) — это харнесс/навигация, НЕ дефект F2:
+        в части прогонов селекция не применялась и машина оставалась на coast (speed~150, roll 0).
+        F-регрессия оценена как пройденная по полным чистым прогонам + тест cdp_f_suspension.mjs (0 FAIL).
+    ✓ консоль: только известный шум GLTFLoader ассетов CARS (32 строки), фильтруется; NONE иначе.
+    ✓ стабильно: Parts 1-5 зелёные во всех прогонах (6+); PART 6 flaky только из-за UI-навигации.
+Коммиты: backup-f2 → feature-f2-selfright (race.ts + NOTES.txt; tools/* и tsbuildinfo НЕ коммитятся).
 
 ====================================================================
 
@@ -954,7 +969,7 @@ Both GLB self-contained (textures embedded).
 ## Задача T — рельеф: физика НА ПОЛМЕТРА совпадает с рендером пола (Вариант 1)   статус: IN PROGRESS
 Автор: агент T
 Файлы: ТОЛЬКО app/town.ts (+ диагностика через tools/, JSON карт НЕ менять).
-    НЕ трогать app/race.ts (F2 IN PROGRESS — ЛЮБАЯ правка race.ts = BLOCKED до DONE F2), page.tsx,
+    НЕ трогать app/race.ts (F2 DONE 07.09.2026 — правки race.ts снова разрешены), page.tsx,
     globals.css, town-*, gen-*, settings-store, wallet-store, CARS-файлы.
 Контекст: makeHeight (town.ts:7) интерполирует по ГЛАВНОЙ диагонали (tx>=tz), а рендер пола
     (town.ts:33, PlaneGeometry nx-1×nz-1) триангулирован по АНТИдиагонали (tx+tz>=1) →
