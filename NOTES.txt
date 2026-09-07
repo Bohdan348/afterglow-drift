@@ -949,3 +949,30 @@ Both GLB self-contained (textures embedded).
 • Коммиты: backup-v1-pre (ab2b6be) → feature-v1-vercel (bf19466 vercel.json + ea78611 CARS snapshot)
   → финальный NOTES-DONE.
 
+====================================================================
+
+## Задача T — рельеф: физика НА ПОЛМЕТРА совпадает с рендером пола (Вариант 1)   статус: IN PROGRESS
+Автор: агент T
+Файлы: ТОЛЬКО app/town.ts (+ диагностика через tools/, JSON карт НЕ менять).
+    НЕ трогать app/race.ts (F2 IN PROGRESS — ЛЮБАЯ правка race.ts = BLOCKED до DONE F2), page.tsx,
+    globals.css, town-*, gen-*, settings-store, wallet-store, CARS-файлы.
+Контекст: makeHeight (town.ts:7) интерполирует по ГЛАВНОЙ диагонали (tx>=tz), а рендер пола
+    (town.ts:33, PlaneGeometry nx-1×nz-1) триангулирован по АНТИдиагонали (tx+tz>=1) →
+    физика groundY/__mm (town.height) расходится со срединной плоскостью меша до ~0.5·(v00−v01);
+    на склонах Würzburg (res=20 м) — метры. Остальные потребители высоты (drape дорог/площадок,
+    базы зданий) тоже берут height() колонно, но фикс makeHeight согласует их автоматически.
+Согласованный вариант: сменить интерполяцию makeHeight на антидиагональ PlaneGeometry. ВАЖНО:
+    рекомендованная в промпте формула ветки tx+tz>=1 — ОПЕЧАТКА (в углу (0,1) даёт v01+v11−v10,
+    а не v01); точный эквивалент триангуляции PlaneGeometry (проверен на непрерывность по всем
+    рёбрам и углам):
+        tx+tz>=1: h=(1-tx)*v01+(tx+tz-1)*v11+(1-tz)*v10
+        tx+tz<1:  h=(1-tx-tz)*v00+tx*v10+tz*v01
+    Без elev (Svitlodarsk) — по-прежнему ()=>0.
+Коммиты: backup-t-pre → feature-t-terrain.
+—— ШАГ 1 (диагностика) ——
+[заполняется]
+—— ШАГ 2 (фикс makeHeight town.ts) ——
+[заполняется]
+—— ШАГ 3 (верификация CDP tools/cdp_t_reli.mjs, регрессия) ——
+[заполняется]
+
