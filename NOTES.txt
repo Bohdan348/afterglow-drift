@@ -1071,3 +1071,16 @@ Both GLB self-contained (textures embedded).
   JSON карт, race.ts, page.tsx, gen-*, wallet/settings не менялись.
 Коммиты: backup-t-pre (9bbd751) → feature-t-terrain.
 
+
+====================================================================
+
+## Задача FIXGO — купленная машина (BMW M4 GT3 / Ford Mustang GT3) не отображается: «перс в воздухе»   статус: IN PROGRESS
+Автор: Агент-FIXGO
+Проблема (подтверждена планировщиком по race.ts:87):
+    activeCar = () => garage[selected]?.group ?? carGroups[selected] ?? car;
+    Пока большой GLB (bmw_m4_gte.glb / ford_mustang.glb) грузится асинхронно, garage[m4/mustang]===null →
+    activeCar() возвращает carGroups[m4/mustang] — заранее созданную ПУСТУЮ группу (visible=false).
+    applyCharacter() в car-режиме приклеивает персонажа к driven=невидимой группе → «перс в воздухе».
+    CDP-тесты CARS ждали __load.m4===true до гонки; реальный игрок стартует мгновенно → баг виден.
+Файлы: ТОЛЬКО app/race.ts (+ page.tsx если потребуется). НЕ трогать чужие секции/файлы.
+Ожидаемые коммиты: backup-fixgo → feature-fixgo-visibility (race.ts, page.tsx?, NOTES; tools/* НЕ коммитить).
