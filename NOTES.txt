@@ -1128,7 +1128,7 @@ Both GLB self-contained (textures embedded).
 
 ====================================================================
 
-## Задача Ped — пешеходы и NPC-транспорт в городах   статус: IN PROGRESS
+## Задача Ped — пешеходы и NPC-транспорт в городах   статус: DONE
 Автор: Агент-Ped
 Файлы: НОВЫЙ app/npc.ts + app/race.ts (только интеграционные хуки) + NOTES.txt.
     НЕ трогать page.tsx/globals.css/settings-store.ts/wallet-store.ts/town-*/gen-*/car-multi-glb.ts.
@@ -1139,7 +1139,33 @@ Both GLB self-contained (textures embedded).
     мягкие коллизии (NPC уступают/тормозят <8 м, объезд игрока ~2.5 м, без жёсткой физики);
     дрифт-показ near-игрока (<120 м) для мото/машин на 0.6-1.2 с; без GLB, низкополи-группы;
     детерминизм от (mapId, индекс), seed мультипликативный; худ-хук window.__npc для CDP.
-[заполняется по завершении]
+Граф (построен один раз на карту): buildV — дорожный (узлы на концах полилиний +
+    пересечениях, ребра-длина, junction-links <4.6 м); buildP — пешеходный (точки вдоль
+    дорог с offset max(1.6, w/2+1.2), рёбра типа pedestrian (переход w+2.4), связи изолированных
+    узлов, area-узлы внутри полигонов budget 150 + pinpoly, coarse-грид 40 м для пути).
+    Wurzburg: ve=10874, pe=35055. Svitlodarsk аналогично по своему JSON.
+Счётчики: desktop ped=22/moto=3/car=6 (в спеке 12-25/2-5/4-8), mobile×0.5 → 10/1/3
+    (детект innerWidth<640), target-топ-ап каждые 0.5 с с плавным донабором до цели.
+Движение: пешеходы по пешеходной сети, seed = mul-mix((mapId,slot,i)) — детерминизм от
+    карты и индекса актора; скорость 1.2-1.8 м/с (ramp до cap), yaw = atan2(-dx,-dz) со
+    сглаживанием, bob-фаза; время «перехода» через дорогу (noCross таймер). Мотор/машины —
+    по дорожной сети 12-22 м/с, lane offset (приоритет правой стороны), слалом.
+Дрифт / уступка: yield — торможение, когда NPC <8 м спереди; drift-show (dr=1, 0.6-1.2 с)
+    для мото/машин в радиусе <120 м от игрока; объезд пешеходами с латеральным смещением ~2.8 м.
+Рендер: пешеходы 2× InstancedMesh (Capsule .19/.45 тело + Sphere .15 голова),
+    frustumCulled=false, castShadow=false, matrixAutoUpdate=false; транспорт — низкополи-группы
+    из box-примитивов (без GLB), castShadow=false; всё в add("npc") subgroup.
+Жизненный цикл (все хуки в app/race.ts): createNpc на TOWN_MAPS в selectMap (height берёт
+    town.height); update в loop() с dt при active&&!paused; despawn при pause/menu и при
+    destroy/dispose/selectGenWorld; respawn(focus) при resume/reset; деспавн далёких акторов
+    >430 м от игрока. window.__npc (counts/actors/graph) — для CDP, обнуляется в despawn.
+Верификация (итог): npx tsc --noEmit (0), npm run build (211 модулей), electron-builder
+    --mac --arm64 (успешно). CDP-прогон tools/cdp_ped.mjs — FAILURES 0, CONSOLE NONE:
+    counts 22/3/6, graph ve=10874/pe=35055, peds движутся 22/22, транспорт 9/9, игрок едет
+    maxSpeed>40, drift 82/178 фреймов, yield 6/178, pause → 0/0/0, resume → 22/3/6,
+    menu → 0/0/0, coast → __npc null + coupe едет, повторный выбор würzburg → 22/3/6.
+    Mobile-эмуляция (412px): ped=10/moto=1/car=3, актёров 14.
+Коммит: feature-ped-traffic (app/npc.ts, app/race.ts, NOTES.txt; tools/ НЕ коммитить).
 
 ## Задача CityProps — слой уличных пропсов (заборы, шлагбаумы, билборды)   статус: IN PROGRESS
 Автор: Агент-CityProps
