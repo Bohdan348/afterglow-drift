@@ -62,11 +62,11 @@ function generateTown(o:GenOptions):TownData{
 
   for(let i=0;i<=mN;i++){
     const x=cx0+i*mainSp
-    roads.push({id:r2id(),p:[[x,bounds[1]-pad],[x,bounds[3]+pad]] as Point[],width:10,kind:'unclassified',name:''})
+    roads.push({id:r2id(),p:[[x,bounds[1]-pad],[x,bounds[3]+pad]] as Point[],width:10,kind:'primary',name:''})
   }
   for(let j=0;j<=mM;j++){
     const z=cz0+j*mainSp2
-    roads.push({id:r2id(),p:[[bounds[0]-pad,z],[bounds[2]+pad,z]] as Point[],width:10,kind:'unclassified',name:''})
+    roads.push({id:r2id(),p:[[bounds[0]-pad,z],[bounds[2]+pad,z]] as Point[],width:10,kind:'primary',name:''})
   }
   for(let j=0;j<mM;j++){
     const rzz=cz0+(j+.5)*mainSp2

@@ -32,6 +32,135 @@ points.forEach((p,i)=>{const h=5+rand()*6,hy=height(p[0],p[1]);dummy.position.se
  const canvas=document.createElement('canvas');canvas.width=512;canvas.height=96;const ctx=canvas.getContext('2d')!;ctx.fillStyle=shops%3===0?'#284d42':shops%3===1?'#714333':'#284451';ctx.fillRect(0,0,512,96);ctx.fillStyle='#eee8d5';ctx.font='bold 54px Arial';ctx.textAlign='center';ctx.fillText(shopNames[shops%shopNames.length],256,66);const tx=new T.CanvasTexture(canvas);tx.colorSpace=T.SRGBColorSpace;textures.push(tx);const sign=new T.Mesh(new T.PlaneGeometry(6,.95),new T.MeshStandardMaterial({map:tx,emissiveMap:tx,emissive:'#ffffff',emissiveIntensity:.15}));sign.position.set(0,3.15,.1);shop.add(sign);
  const bx=x+nx*3,bz=z+nz*3;if(clear(bx,bz,.5)){box(wood,2,.12,.55,bx,.55,bz,yaw);box(wood,2,.55,.08,bx-nx*.22,.85,bz-nz*.22,yaw);for(const side of [-1,1])box(steel,.1,.55,.5,bx+nz*.7*side,.25,bz-nx*.7*side,yaw)}shops++;
  }
- for(const [m,matrices]of propBoxes){const mesh=new T.InstancedMesh(new T.BoxGeometry(1,1,1),m,matrices.length);matrices.forEach((matrix,i)=>mesh.setMatrixAt(i,matrix));mesh.castShadow=true;mesh.receiveShadow=true;group.add(mesh)}
- return{group,textures,update(time:number){if(wind)wind.value=time},solids:[...points.map(p=>({x:p[0],z:p[1],r:.28})),...lamps.map(p=>({x:p[0],z:p[1],r:.18}))],stats:{trees:points.length,grass:grassPoints.length,shops,lamps:lamps.length}};
+const ph=(x:number,z:number,k:number)=>{const n=Math.sin(x*127.1+z*311.7+k*113.5)*43758.5453;return n-Math.floor(n)}
+  const inW=(x:number,z:number)=>{for(const a of water)if(inside(x,z,a.p))return true;return false}
+  const roadNear=(x:number,z:number,margin:number)=>{const key=Math.floor(x/cell)+','+Math.floor(z/cell);for(const r of roadGrid.get(key)??[])if(distance(x,z,r.a,r.b)<r.w/2+margin)return true;return false}
+  function sideDist(x:number,z:number,p:Point[]){let best=Infinity;for(let j=1;j<p.length;j++){const d=distance(x,z,p[j-1],p[j]);if(d<best)best=d}const d=distance(x,z,p[p.length-1],p[0]);if(d<best)best=d;return best}
+  const nearBuildEdge=(x:number,z:number,rad:number,self=-1)=>{const key=Math.floor(x/cell)+','+Math.floor(z/cell);for(const i of buildingGrid.get(key)??[]){if(i===self)continue;const b=data.buildings[i];if(inside(x,z,b.p))return true;if(sideDist(x,z,b.p)<rad)return true}return false}
+  const openGround=(x:number,z:number,mr=3,mb=1.6)=>!roadNear(x,z,mr)&&!inW(x,z)&&!nearBuildEdge(x,z,mb)
+  const openGroundLoose=(x:number,z:number,mr=3)=>{if(roadNear(x,z,mr)||inW(x,z))return false;const key=Math.floor(x/cell)+','+Math.floor(z/cell);for(const i of buildingGrid.get(key)??[])if(inside(x,z,data.buildings[i].p))return false;return true}
+  const roadUnder=(x:number,z:number)=>{const key=Math.floor(x/cell)+','+Math.floor(z/cell);for(const r of roadGrid.get(key)??[])if(distance(x,z,r.a,r.b)<r.w/2)return true;return false}
+  const fenceMat=mat('#5f5848',.95),gateMat=mat('#394a50',.55),boardMat=mat('#d5d2c3',.75)
+  const fenceSet=new Set<string>()
+  const fences:{x:number;z:number;yaw:number}[]=[]
+  const fenceRails:{x:number;z:number;yaw:number;len:number}[]=[]
+  for(let bi=0;bi<data.buildings.length;bi++){
+    const b=data.buildings[bi],p=b.p
+    if(p.length<4)continue
+    for(let j=1;j<p.length;j++){
+      const a=p[j-1],c=p[j]
+      const dx=c[0]-a[0],dz=c[1]-a[1],len=Math.hypot(dx,dz)
+      if(len<10||len>160)continue
+      const mx=(a[0]+c[0])/2,mz=(a[1]+c[1])/2
+      if(roadNear(mx,mz,5)||inW(mx,mz))continue
+      const inx=-dz/len,inz=dx/len
+      let mn=0,ok=false
+      for(const s of[-1,1]){
+        let hit=true,clear=true
+        for(const d of[1.4,4.2]){const ox=mx+inx*s*d,oz=mz+inz*s*d;if(inW(ox,oz)){clear=false;break}if(!inside(ox,oz,p)&&nearBuildEdge(ox,oz,.9,bi))hit=false}
+        if(clear&&!hit){mn=s;ok=true;break}
+      }
+      if(!ok)continue
+      const yaw=Math.atan2(dx,dz)
+      const nP=Math.max(2,Math.round(len/2.4))
+      let px0=0,pz0=0
+      for(let k=0;k<=nP;k++){
+        const px=a[0]+dx*k/nP+inx*mn*.35,pz=a[1]+dz*k/nP+inz*mn*.35
+        if(inW(px,pz)||nearBuildEdge(px,pz,.2)||roadNear(px,pz,.25)){px0=0;continue}
+        const key=Math.round(px*2)+','+Math.round(pz*2)
+        if(fenceSet.has(key)){px0=0;continue}
+        fenceSet.add(key)
+        fences.push({x:px,z:pz,yaw})
+        if(px0)fenceRails.push({x:(px0+px)/2,z:(pz0+pz)/2,yaw,len:Math.hypot(px-px0,pz-pz0)})
+        px0=px;pz0=pz
+      }
+      if(fences.length>=15000)break
+    }
+    if(fences.length>=15000)break
+  }
+  for(const f of fences)box(fenceMat,.09,1.16,.09,f.x,.52,f.z,f.yaw)
+  for(const r of fenceRails)box(fenceMat,.07,.09,Math.max(.5,r.len),r.x,1.02,r.z,r.yaw)
+  const gates:{x:number;z:number;yaw:number;w:number;p1x:number;p1z:number;p2x:number;p2z:number}[]=[]
+  for(const r of data.roads.filter(r=>r.kind==='service')){
+    for(let i=r.p.length-1;i>=1;i--){
+      const b=r.p[i],a=r.p[i-1],dx=b[0]-a[0],dz=b[1]-a[1],len=Math.hypot(dx,dz)
+      if(len<4||len>90)continue
+      const mx=(a[0]+b[0])/2,mz=(a[1]+b[1])/2
+      let target=false
+      for(const ar of data.areas)if(['residential','allotments','industrial','park','playground'].includes(ar.kind)&&inside(mx,mz,ar.p)){target=true;break}
+      if(!target)for(const pr of data.roads.filter(q=>q.kind==='pedestrian')){if(target)break;for(let j=1;j<pr.p.length;j++)if(distance(mx,mz,pr.p[j-1],pr.p[j])<5){target=true;break}}
+      if(!target)continue
+      if(inW(mx,mz)||nearBuildEdge(mx,mz,.6))continue
+      const nnx=-dz/len,nnz=dx/len,half=r.width/2+.75
+      const p1x=mx+nnx*half,p1z=mz+nnz*half,p2x=mx-nnx*half,p2z=mz-nnz*half
+      if(nearBuildEdge(p1x,p1z,.3)||nearBuildEdge(p2x,p2z,.3)||roadUnder(p1x,p1z)||roadUnder(p2x,p2z)||inW(p1x,p1z)||inW(p2x,p2z))continue
+      gates.push({x:mx,z:mz,yaw:Math.atan2(dx,dz),w:r.width,p1x,p1z,p2x,p2z});break
+    }
+    if(gates.length>=80)break
+  }
+  for(const g of gates){
+    box(gateMat,.16,2.6,.16,g.p1x,1.3,g.p1z)
+    box(gateMat,.16,2.6,.16,g.p2x,1.3,g.p2z)
+    box(gateMat,g.w+.8,.16,.34,g.x,2.9,g.z,g.yaw)
+  }
+  const billboards:{x:number;z:number;yaw:number}[]=[]
+  const insideB=(x:number,z:number)=>{const key=Math.floor(x/cell)+','+Math.floor(z/cell);for(const i of buildingGrid.get(key)??[])if(inside(x,z,data.buildings[i].p))return true;return false}
+  for(const r of data.roads){
+    if(r.kind!=='primary'&&r.kind!=='secondary'&&r.kind!=='tertiary')continue
+    const P=r.p
+    if(P.length<2)continue
+    const sl:number[]=[];let tot=0
+    for(let i=1;i<P.length;i++){const l=Math.hypot(P[i][0]-P[i-1][0],P[i][1]-P[i-1][1]);sl.push(l);tot+=l}
+    if(tot<60)continue
+    const per=Math.floor(tot/430)
+    for(let k=0;k<per&&billboards.length<120;k++){
+      const s=(k+(ph(r.width,P.length,k)+.35))/per
+      let t=s*tot,si=0,acc=0
+      while(si<sl.length&&acc+sl[si]<t){acc+=sl[si];si++}
+      const seg=si<sl.length?sl[si]:sl[sl.length-1]
+      const f=seg>0.01?(t-acc)/seg:0
+      const x0=P[si][0],z0=P[si][1],x1=P[si+1]?P[si+1][0]:x0,z1=P[si+1]?P[si+1][1]:z0
+      const cx=x0+(x1-x0)*f,cz=z0+(z1-z0)*f,dx=x1-x0,dz=z1-z0
+      const nnx=seg>0.01?-dz/seg:0,nnz=seg>0.01?dx/seg:0
+      const yaw=Math.atan2(dx,dz),off=r.width/2+6.5
+      for(const sn of[-1,1]){
+        const px=cx+nnx*off*sn,pz=cz+nnz*off*sn
+        if(!openGroundLoose(px,pz,3))continue
+        const cc=Math.cos(yaw),ss=Math.sin(yaw)
+        if(insideB(px+cc*2,pz-ss*2)||insideB(px-cc*2,pz+ss*2))continue
+        billboards.push({x:px,z:pz,yaw});break
+      }
+    }
+  }
+  for(const b of billboards){
+    const cc=Math.cos(b.yaw),ss=Math.sin(b.yaw)
+    box(boardMat,5.8,3,.32,b.x,5.7,b.z,b.yaw)
+    box(steel,.2,4.7,.2,b.x+cc*2,b.z-ss*2,2.35)
+    box(steel,.2,4.7,.2,b.x-cc*2,b.z+ss*2,2.35)
+  }
+  const benches:number[][]=[]
+  for(const a of data.areas){
+    if(!['park','recreation_ground','playground','pitch','square'].includes(a.kind))continue
+    let cx0=0,cz0=0;for(const q of a.p){cx0+=q[0];cz0+=q[1]}cx0/=a.p.length;cz0/=a.p.length
+    for(let j=1;j<a.p.length&&benches.length<220;j++){
+      const e1=a.p[j-1],e2=a.p[j],dx=e2[0]-e1[0],dz=e2[1]-e1[1],len=Math.hypot(dx,dz)
+      if(len<18)continue
+      const mx=(e1[0]+e2[0])/2,mz=(e1[1]+e2[1])/2
+      const tw=Math.hypot(cx0-mx,cz0-mz)||1,ix=(cx0-mx)/tw,iz=(cz0-mz)/tw
+      const bxx=mx+ix*1.7,bzz=mz+iz*1.7
+      if(!inside(bxx,bzz,a.p)||!openGround(bxx,bzz,1.4,1))continue
+      const yaw=Math.atan2(ix,iz)
+      benches.push([bxx,bzz,yaw])
+    }
+  }
+  for(const b of benches){
+    const yaw=b[2],cc=Math.cos(yaw),ss=Math.sin(yaw)
+    box(wood,2,.1,.55,b[0],.45,b[1],yaw)
+    box(wood,2,.5,.06,b[0],.95,b[1],yaw)
+    box(steel,.07,.45,.07,b[0]+cc*.8,b[1]-ss*.8,.22)
+    box(steel,.07,.45,.07,b[0]-cc*.8,b[1]+ss*.8,.22)
+  }
+  for(const [m,matrices]of propBoxes){const mesh=new T.InstancedMesh(new T.BoxGeometry(1,1,1),m,matrices.length);matrices.forEach((matrix,i)=>mesh.setMatrixAt(i,matrix));mesh.castShadow=false;mesh.receiveShadow=true;group.add(mesh)}
+  if(typeof window!=='undefined')(window as any).__props={fences,gates,billboards,benches}
+  return{group,textures,update(time:number){if(wind)wind.value=time},solids:[...points.map(p=>({x:p[0],z:p[1],r:.28})),...lamps.map(p=>({x:p[0],z:p[1],r:.18})),...fences.map(f=>({x:f.x,z:f.z,r:.15})),...gates.flatMap(g=>[{x:g.p1x,z:g.p1z,r:.22},{x:g.p2x,z:g.p2z,r:.22}]),...billboards.flatMap(b=>{const cc=Math.cos(b.yaw),ss=Math.sin(b.yaw);return[{x:b.x+cc*2,z:b.z-ss*2,r:.25},{x:b.x-cc*2,z:b.z+ss*2,r:.25}]})],stats:{trees:points.length,grass:grassPoints.length,shops,lamps:lamps.length,fences:fences.length,gates:gates.length,billboards:billboards.length,benches:benches.length}};
 }

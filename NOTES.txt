@@ -1167,7 +1167,7 @@ Both GLB self-contained (textures embedded).
     Mobile-эмуляция (412px): ped=10/moto=1/car=3, актёров 14.
 Коммит: feature-ped-traffic (app/npc.ts, app/race.ts, NOTES.txt; tools/ НЕ коммитить).
 
-## Задача CityProps — слой уличных пропсов (заборы, шлагбаумы, билборды)   статус: IN PROGRESS
+## Задача CityProps — слой уличных пропсов (заборы, шлагбаумы, билборды)   статус: DONE
 Автор: Агент-CityProps
 Файлы: ТОЛЬКО app/gen-town.ts (места) + app/town-details.ts (отрисовка). НЕ трогать race.ts,
     town.ts (коллизии/пол), page.tsx, town-data.ts, JSON карт.
@@ -1193,3 +1193,43 @@ Both GLB self-contained (textures embedded).
     (__gen.generateTown → selectGenWorld → сравнить __props).
 Коммиты: backup-props → feature-cityprops (app/gen-town.ts, app/town-details.ts, NOTES.txt;
     tools/* и app/format.ts НЕ коммитить).
+
+## CityProps — итоги (2026-09-07)
+Сделано в app/town-details.ts (createTownDetails, замена flush+return):
+  - helper-ы: ph(), inW, roadNear, sideDist, nearBuildEdge, openGround, openGroundLoose,
+    roadUnder; buildingGrid/roadGrid (klастерные ячейки 40м).
+  - заборы: по не-дорожным граням зданий (edge 10..160м), offset .35 к открытой стороне,
+    палки каждые ~2.4м + рельс, top=+1.10, солтид r=.15; caps 15000.
+  - шлагбаумы: service-сегмент midpoint в residential/park/playground area ИЛИ рядом с
+    pedestrian-дорогой (<5м); посты на обочинах half=w/2+.75, r=.22; арм w+.8 на y=2.9
+    (низ 2.82 — проезд); отсевы: nearBuildEdge .3, roadUnder, вода.
+  - билборды: полная полилиния primary/secondary/tertiary (агрегация length-ов сегментов,
+    распределение по длине через ph(r.width,len,k)), отступ r/2+6.5, panel top=+7.2
+    (низ 4.2 — проезд), ноги ±2м вдоль дороги; отсев: openGroundLoose(3), insideB по ногам;
+    caps 120.
+  - лавки: по рёбрам park/recreation_ground/playground/pitch/square, внутрь перем.центроид,
+    openGround(1.4,1); без solids (свободный проход); caps 220.
+  - propBoxes: все castShadow=false (инвариант), green/benches/fences/шлагбаумы/билборды.
+  - window.__props={fences,gates,billboards,benches}; stats расширены.
+  - gen-town.ts: main-авеню (width:10) kind 'unclassified'→'primary' (2 строки) — ген-города
+    получают билборды; drivable-набор kinds к нему не привязан (проверено), minimap не меняется.
+Итоги CDP (tools/cdp_props.mjs, cdp_props2.mjs — свежие .app):
+  - Würzburg: fences=2519, gates=1, billboards=16, benches=220; ВСЕ OK.
+  - no-overlap: 0 внутри зданий/воды, 0 на асфальте (roadE>=0.25 заборы / >=0.05 шлагбаумы).
+  - видимость __probe: fence top +1.1 [1.1..], gate post +2.6, panel top +7.2 — OK.
+  - pass-under: шлагбаум-арм 2.9 (низ 2.82), билборд top 7.2 (низ 4.2) — проезд без застревания
+    (drive smoke max≈300km/h на Würzburg).
+  - детерминизм: generateTown(seed 4242 CITY) == идентичные TownData (roads=26, builds=649);
+    selectGenWorld×2 → идентичные __props (f=4,g=0,b=120,be=0 на ген-CITY); Svitlodarsk:
+    f=2154, g=8, b=0 (нет primary/secondary/tertiary — корректно), be=54.
+  - Регрессии (свежие .app, exit 0): cdp_t_reli (физика рельефа Würzburg + drive),
+    cdp_g4_gen_gameplay (infinite/SAVED CIPY drive, persist, coast), cdp_f_foot (foot на generic).
+Найдено/исправлено по ходу: билборды 0 на Würzburg — полилиния дорог дробится на короткие
+  сегменты, per-segment placement давал per=0 → перешли на агрегацию по всей полилинии;
+  заборы 8877 внутрь чужих зданий — не было глобального проверки inside/nearBuildEdge на палке
+  → добавлено (2519 осталось, все валидны); шлагбаум-посты 10 на асфальте перекрёстков —
+  roadUnder+offset .75 → gr=0.
+Хвосты/известное: gates на Würzburg всего 1 (строгие отсевы roadUnder+nearBuildEdge; на
+  Svitlodarsk 8 — плотность зависит от карты). Bиллбордов 16/120 на Würzburg (застройка плотная,
+  отсев openGroundLoose). Заборов больше не ставить — надёжность перф (draw-call на тип).
+  CDP-харнессы и .app/format.ts (stray) не коммитить.
