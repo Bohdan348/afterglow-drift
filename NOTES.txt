@@ -772,3 +772,76 @@ unclassified, остальные w6 residential), здания/рощи/пруд
     только bikeLean (как и было — вне скоупа F).
 Коммиты: backup-f-1 (bc88f06) → feature-f-suspension.
 
+====================================================================
+
+## Задача CARS — два новых транспорта: BMW M4 GT3 (G82) + Ford Mustang GT3   статус: IN PROGRESS
+Автор: Агент-CARS
+Согласованный порядок: ШАГ A — ТОЛЬКО ассеты в public/ (изолированно, НЕ трогать
+    race.ts/page.tsx/wallet-store.ts/settings-store.ts), коммит backup-cars-pre →
+    feature-cars-assets; затем ШАГ B — интеграция в race.ts + page.tsx + wallet-store.ts,
+    коммит backup-cars-b → feature-cars-vehicles.
+Файлы ШАГ A: public/bmw_m4_gte.glb (из source/Untitled.glb), public/ford_mustang.glb
+    (из ford_mustang_gt3__www.vecarz.com.glb); tools/ (служебные, не коммитятся).
+Файлы ШАГ B: app/race.ts, app/settings-store.ts, app/wallet-store.ts, app/page.tsx.
+    НЕ трогаю чужие секции/файлы.
+Источники:
+    /Users/bohdan/Desktop/cars/2022-full-carbon-bmw-m4-gt3-g82/source/Untitled.glb (46.6MB)
+    /Users/bohdan/Desktop/cars/ford_mustang_gt3__www.vecarz.com.glb (70MB)
+Both GLB self-contained (textures embedded).
+—— ШАГ A (реализовано) ——
+• M4 — ПРОБЛЕМА: Untitled.glb = ОДИН меш с 51 примитивом-материалом (единый узел
+  bmw_m4_gt3_acc, rotation 90°X) → loadCarModelMulti не сможет выделить колёса
+  (clusters!=4 → null → процедурный фолбэк). Решение: tools/bmw_split.mjs разбивает
+  GLB на 51 узел/меш (по материалам, имена = material.name) и пишет public/bmw_m4_gte.glb.
+• mustang — multi-mesh (85 мешей/261 узел) → копируется как есть в public/ford_mustang.glb.
+• Проверка геометрии tools/cars_inspect.mjs (аналог wheelClusters по JSON+BIN):
+  [впишут факт: оба по ровно 4 колеса FL/RL/FR/RR, перед/зад 2+2, tailMat].
+—— ШАГ B —
+[заполняется после интеграции]
+
+====================================================================
+
+## Задача V1 — публикация игры в интернет через Vercel (GitHub-import, Hobby)   статус: IN PROGRESS
+Автор: агент V1 (промпт от планировщика).
+Решение пользователя (подтверждено): Вариант 1 — Vercel через GitHub-import; репо ПУБЛИЧНЫЙ;
+    домен бесплатный https://<proj>.vercel.app; аккаунты GitHub и Vercel у пользователя ЕСТЬ.
+Доступ к среде: у пользователя открыт Google Chrome, залогинен в GitHub и Vercel; агенту дано
+    право работать с этим браузером через computer-use «CLI-Anything» (скриншоты/клики/ввод/фокус).
+    git push — с машины (MAC, локальный git в game/).
+Файлы: ТОЛЬКО инфраструктура — .gitignore, vercel.json, .vercelignore (и при необходимости
+    next.config только по мотиву деплоя). ЗАПРЕЩЕНО трогать: app/** (race.ts, page.tsx, town-*,
+    gen-*, settings-store.ts, wallet-store.ts, visuals.ts, actors.ts, town-minimap.tsx),
+    public/maps/*.json, .glb-файлы, electron/, package.json/package-lock.json (без отдельной задачи).
+Факты, проверенные планировщиком:
+    • Сборка НЕстандартная: next НЕТ в package.json; сборщик vinext 1.0.0-beta.5; output:'export'.
+      npm run build → dist/client (203М статика) + dist/server/wrangler.json (задел Cloudflare — для
+      Vercel НЕ нужен). Локально node v24.12/npm 11.6.2, engines >=22.13.
+    • public/ до CARS: ~187М GLB (car_glb 68М, bmw_s1000rr 45М, porshe 26М, m8 20М, harley 15М,
+      super_human 9.6М). CARS ШАГ A добавляет bmw_m4_gte.glb (~46М) + ford_mustang.glb (~70М).
+      Все файлы <100МБ → GitHub примет. Сумма в репо может быть ~300-400М (GitHub устаёт на ~1ГБ — ок).
+    • Vercel Hobby: CLI-загрузка исходников ограничена 100МБ → CLI-путь НЕ используем, только
+      Git-import. Лимит файлов 15000, билд 45мин, диск 32ГБ.
+    • git: remote НЕТ; дерево локально чистое (изменён только tsconfig.tsbuildinfo + untracked tools/).
+      gh и vercel CLI в PATH НЕ установлены (можно поставить vercel CLI, но основной путь — Git-import).
+Контракт V1 (acceptance):
+  1) backup-коммит «backup-v1-pre» до работы, feature-коммит после.
+  2) .gitignore дополнен: /release/, /dist/, /tools/, /.vercel/, tsconfig.tsbuildinfo, *.dmg,
+     *.zip, builder-debug.yml, zir3jUqF/ (+ проверить отсутствие секретов: socket keys/TLS/.env).
+     git status: node_modules/, release/, dist/, tools/ и tsbuildinfo в push НЕ попадают.
+  3) Публичный GitHub-репо (имя: спросить у пользователя или по-умолчанию afterglow-drift), remote
+     origin добавлен, текущий main запушен (снимок: CARS-ассеты если уже в public/ — войдут).
+  4) Vercel: New Project → Import из GitHub. Настройки: Framework Preset Other (не Next.js),
+     Build Command «npm run build», Install «npm install», Output Directory «dist/client»,
+     Node.js 22.x. Деплой зелёный.
+  5) Прод-проверка (curl + Chrome/CLI-Anything):
+     / 200; /maps/svitlodarsk.json и /maps/wurzburg.json 200; /car_glb.glb 200 + ожидаемый размер;
+     меню→кост→PLAY стартует, KeyW едет, HUD speed>0, minimap жив; консоль без ошибок;
+     mobile 375×667 — меню/карточки влезают, PLAY работает.
+  6) Если Vercel не отдаёт большой GLB (>~50М): КОД НЕ МЕНЯТЬ — пометить BLOCKED по этому пункту,
+     в NOTES хвост: «вынести большие GLB на Vercel Blob (Hobby 1ГБ) + замена URL» (отдельная задача).
+     Vercel Pro/оплату Не включать без согласования с пользователем.
+  7) NOTES-отчёт: URL, headers-факты, что DONE/что BLOCK, какие файлы «заняты» (НЕ app/ — они свободны,
+     но CARS держит race.ts/page.tsx/wallet-store.ts), хвосты. Коммит результата «feature-v1-vercel».
+Координация: V1 и CARS ПАРАЛЛЕЛЬНЫ (инфраструктурные файлы vs app/). V1 НЕ трогает файлы CARS.
+    После V1: автодеплой Vercel будет на каждый push main — все фиче-коммиты уйдут в прод сами.
+
