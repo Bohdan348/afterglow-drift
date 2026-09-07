@@ -16,6 +16,8 @@ const vehicles:[VehicleId,string,string,string][] = [
   ['coupe','Sports Coupe','RWD · Rear-wheel drive · Balanced drift','car'],
   ['porsche','Porsche','Twin-turbo flat-six · Sharper entry & exit','car'],
   ['m8','BMW M8 GTE','Racing GT · High grip · Fast & planted','car'],
+  ['m4','BMW M4 GT3','Carbon GT3 · Most grip · Fastest on rails','car'],
+  ['mustang','Ford Mustang GT3','V8 muscle · Loose tail · Big slides','car'],
   ['bike','BMW S1000RR','Inline-4 · Lean physics · Narrow & fast','bike'],
 ] as const;
 type VehicleMeta=typeof vehicles[number];

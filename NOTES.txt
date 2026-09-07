@@ -818,8 +818,29 @@ Both GLB self-contained (textures embedded).
     deployment фактически ушли финальные ассеты после feature-cars-assets.
   • tools/cars_loadcheck.mjs stripTextures приведён к версии cars_frame.mjs (рекурсивное удаление
     'index' внутри material extensions иначе GLTFLoader падает на extensions мёртвых текстур).
-—— ШАГ B —
-[заполняется после интеграции]
+—— ШАГ B (реализовано) ——
+• vehicle-union VehicleId: coupe|porsche|m8|m4|mustang|bike (app/race.ts L19 и пр.); в
+  WalletVehicle/Settings.startVehicle те же 6 марок.
+• race.ts: CAR_GLB += m4:'/bmw_m4_gte.glb', mustang:'/ford_mustang.glb'; CAR_NAMES +=
+  'BMW M4 GT3','Ford Mustang GT3'; HANDLING += m4{accel:45,rev:50,max:141,...,grip:2.3,
+  steer:1.45,latYaw:.22} (GT3-прото выше m8) и mustang{accel:46,rev:48,max:138,...,grip:1.35,
+  steer:1.7,latYaw:.38} (muscle-drift: выше accel, НИЖЕ grip → больше слайд). Точки: цикл
+  carGroups ['porsche','m8','m4','mustang'], garage {m4:null,mustang:null}, setLoad += m4/mustang,
+  cast vid as 'porsche'|'m8'|'m4'|'mustang'. HANDLING существующих машин НЕ менялись.
+• wallet-store.ts: PRICES{m4:12500,mustang:8500}, defaults() m4:false mustang:false.
+• page.tsx: vehicles += m4 (Carbon GT3 · Most grip), mustang (V8 muscle · Loose tail · Big slides)
+  перед bike — карточки SHOP: buy → owned + startVehicle, SHORT-$ при нехватке.
+• GATE CDP tools/cdp_cars.mjs (паттерн cdp_wallet/cdp_shop, port 9222): reset→reload→menu.
+  Проверено 36/36 OK, exit 0: карточки m4 $12,500 / mustang $8,500, locked, SHORT при $0/$3000,
+  покупка обеих (cash→0, persisted), PLAY на купленном m4 (vehicle id m4, travel-mode M4 GT3),
+  GLB m4+mustang загружены в garage (__load), W-гонка m4 (drift score рост), __sus крен
+  (roll/pitch/yaw реагируют), mustang drive, регрессия coupe/porsche/m8/bike (все заводятся/едут).
+  Консоль: только среда-предупреждения Electron CSP + React#418 hydration self-heal (из-за
+  setStartVehicle≠coupe при reload — PRE-EXISTING, не CARS-регрессия), GLTFLoader min/max — шум.
+• Сборка/пакетирование: tsc --noEmit 0; npm run build 0 (dist/client с новым bmw_m4_gte.glb +
+  ford_mustang.glb); electron-builder mac arm64 (DMG+ZIP собраны; подпись skipped как обычно).
+• Итоговые git: c8b04ee feature-cars-assets (bmw_m4_gte.glb 61М + NOTES ШАГ A), далее
+  feature-cars-vehicles (app/* 4 файла + NOTES ШАГ B). tools/ и cdp_cars.mjs НЕ коммитятся.
 
 ====================================================================
 

@@ -16,15 +16,17 @@ const TOWN_MAPS=new Set<MapId>(['svitlodarsk','wurzburg']);
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 export type DriveStyle='standard'|'drift';
-export type VehicleId='coupe'|'porsche'|'m8'|'bike';
+export type VehicleId='coupe'|'porsche'|'m8'|'m4'|'mustang'|'bike';
 export type HUD={speed:number,score:number,combo:number,angle:number,drifting:boolean,x:number,z:number,yaw:number,mode:TravelMode,hint:string,carX:number,carZ:number,bikeX:number,bikeZ:number,style:DriveStyle,earned?:number};
-const CAR_GLB:Record<string,string>={porsche:'/porshe.glb',m8:'/m8_gte.glb'};
-const CAR_NAMES:Record<VehicleId,string>={coupe:'Sports Coupe',porsche:'Porsche',m8:'BMW M8 GTE',bike:'BMW S1000RR'};
+const CAR_GLB:Record<string,string>={porsche:'/porshe.glb',m8:'/m8_gte.glb',m4:'/bmw_m4_gte.glb',mustang:'/ford_mustang.glb'};
+const CAR_NAMES:Record<VehicleId,string>={coupe:'Sports Coupe',porsche:'Porsche',m8:'BMW M8 GTE',m4:'BMW M4 GT3',mustang:'Ford Mustang GT3',bike:'BMW S1000RR'};
 const WURZBURG_SPAWN={x:-27,z:-160,yaw:-2.628};
 const HANDLING:Record<VehicleId,{accel:number,rev:number,max:number,maxRev:number,dragBase:number,dragLin:number,brakeDrag:number,grip:number,gripSteer:number,gripSlip:number,driftGrip:number,driftGripSteer:number,driftGripSlip:number,steer:number,steerSpeed:number,latYaw:number}>={
 coupe:{accel:34,rev:48,max:114,maxRev:-24,dragBase:.16,dragLin:.0008,brakeDrag:.48,grip:1.65,gripSteer:.75,gripSlip:.22,driftGrip:4.0,driftGripSteer:2.4,driftGripSlip:.6,steer:1.5,steerSpeed:.004,latYaw:.28},
 porsche:{accel:43,rev:52,max:126,maxRev:-26,dragBase:.155,dragLin:.00078,brakeDrag:.46,grip:1.45,gripSteer:.64,gripSlip:.2,driftGrip:3.4,driftGripSteer:2.0,driftGripSlip:.5,steer:1.8,steerSpeed:.0046,latYaw:.34},
 m8:{accel:40,rev:47,max:136,maxRev:-23,dragBase:.17,dragLin:.00085,brakeDrag:.5,grip:2.1,gripSteer:1.05,gripSlip:.34,driftGrip:4.9,driftGripSteer:2.9,driftGripSlip:.72,steer:1.32,steerSpeed:.0032,latYaw:.24},
+m4:{accel:45,rev:50,max:141,maxRev:-24,dragBase:.165,dragLin:.00082,brakeDrag:.48,grip:2.3,gripSteer:1.2,gripSlip:.38,driftGrip:5.2,driftGripSteer:3.1,driftGripSlip:.76,steer:1.45,steerSpeed:.0036,latYaw:.22},
+mustang:{accel:46,rev:48,max:138,maxRev:-24,dragBase:.17,dragLin:.00088,brakeDrag:.5,grip:1.35,gripSteer:.6,gripSlip:.19,driftGrip:3.2,driftGripSteer:1.9,driftGripSlip:.48,steer:1.7,steerSpeed:.0042,latYaw:.38},
 bike:{accel:0,rev:0,max:0,maxRev:0,dragBase:0,dragLin:0,brakeDrag:0,grip:0,gripSteer:0,gripSlip:0,driftGrip:0,driftGripSteer:0,driftGripSlip:0,steer:0,steerSpeed:0,latYaw:0}};
 export function createGame(host:HTMLElement,onHUD:(h:HUD)=>void,onPause:(p:boolean)=>void){
  const scene=new T.Scene();scene.background=new T.Color('#80959e');scene.fog=new T.FogExp2('#9ba6a8',.0025);
@@ -80,8 +82,8 @@ export function createGame(host:HTMLElement,onHUD:(h:HUD)=>void,onPause:(p:boole
  const smoke=Array.from({length:100},()=>{const s=new T.Sprite(new T.SpriteMaterial({map:smokeTex,transparent:true,depthWrite:false,opacity:0}));scene.add(s);return{s,life:0}});let smokeIndex=0;
  const skidMat=new T.MeshBasicMaterial({color:'#11191c',transparent:true,opacity:.45,depthWrite:false});const skids=Array.from({length:500},()=>{const s=mesh(new T.PlaneGeometry(.24,.7),skidMat);s.rotation.x=-Math.PI/2;s.visible=false;s.castShadow=false;return s});let skidIndex=0;
 const motorbike=createMotorbike();scene.add(motorbike.group);const character=createCharacter();scene.add(character.group);castVehicles(motorbike.group);castVehicles(character.group);
-  const carGroups:Record<string,T.Group>={coupe:car};for(const id of ['porsche','m8'] as const){const g=new T.Group();g.scale.setScalar(VEHICLE_SCALE);g.visible=false;carGroups[id]=g;scene.add(g);castVehicles(g)}
-  let showVehicles=false,selected:VehicleId='coupe',garage:Record<VehicleId,{group:T.Group,wheels:T.Group[],tailMat:T.MeshStandardMaterial|null,textures:T.Texture[]}|null>={coupe:{group:car,wheels,tailMat,textures:[]},porsche:null,m8:null,bike:null};
+  const carGroups:Record<string,T.Group>={coupe:car};for(const id of ['porsche','m8','m4','mustang'] as const){const g=new T.Group();g.scale.setScalar(VEHICLE_SCALE);g.visible=false;carGroups[id]=g;scene.add(g);castVehicles(g)}
+  let showVehicles=false,selected:VehicleId='coupe',garage:Record<VehicleId,{group:T.Group,wheels:T.Group[],tailMat:T.MeshStandardMaterial|null,textures:T.Texture[]}|null>={coupe:{group:car,wheels,tailMat,textures:[]},porsche:null,m8:null,m4:null,mustang:null,bike:null};
   const activeCar=()=>garage[selected]?.group??carGroups[selected]??car;
   const carName=()=>CAR_NAMES[selected==='bike'?'coupe':selected];
   const renderVehicles=()=>{const cg=activeCar();for(const[k,g]of Object.entries(carGroups))g.visible=showVehicles&&g===cg;motorbike.group.visible=showVehicles;character.group.visible=showVehicles};
@@ -91,9 +93,9 @@ const motorbike=createMotorbike();scene.add(motorbike.group);const character=cre
   // Swap in the detailed GLB models once they load; keep the procedural
   // vehicles as an instant fallback so the game starts without waiting.
   let glbLoaded=false,glbBike=false,glbTextures:T.Texture[]=[];
-  const setLoad=()=>{(window as Window & {__load?:unknown}).__load={coupe:glbLoaded,porsche:!!garage.porsche,m8:!!garage.m8,bike:glbBike}};
+  const setLoad=()=>{(window as Window & {__load?:unknown}).__load={coupe:glbLoaded,porsche:!!garage.porsche,m8:!!garage.m8,m4:!!garage.m4,mustang:!!garage.mustang,bike:glbBike}};
   void loadCarModel('/car_glb.glb').then(m=>{if(disposed||glbLoaded||!m)return;glbLoaded=true;glbTextures=m.textures;for(let i=pCar.children.length-1;i>=0;i--)pCar.remove(pCar.children[i]);pCar.add(m.group);garage.coupe={group:car,wheels:m.wheels,tailMat:m.tailMat,textures:m.textures};renderVehicles();setLoad()});
-  for(const [id,url]of Object.entries(CAR_GLB)){void loadCarModelMulti(url).then(m=>{const vid=id as 'porsche'|'m8';if(disposed||!m||garage[vid])return;const g=carGroups[vid];g.add(m.group);garage[vid]={group:g,wheels:m.wheels,tailMat:m.tailMat,textures:m.textures};glbTextures.push(...m.textures);renderVehicles();setLoad()})}
+  for(const [id,url]of Object.entries(CAR_GLB)){void loadCarModelMulti(url).then(m=>{const vid=id as 'porsche'|'m8'|'m4'|'mustang';if(disposed||!m||garage[vid])return;const g=carGroups[vid];g.add(m.group);garage[vid]={group:g,wheels:m.wheels,tailMat:m.tailMat,textures:m.textures};glbTextures.push(...m.textures);renderVehicles();setLoad()})}
   void loadBikeModel('/bmw_s1000rr.glb').then(m=>{if(disposed||glbBike||!m)return;glbBike=true;glbTextures.push(...m.textures);for(let i=motorbike.group.children.length-1;i>=0;i--){const c=motorbike.group.children[i];if(c.userData.builtin)continue;motorbike.group.remove(c)}motorbike.group.add(m.group);renderVehicles();setLoad()});
  const keys:Record<string,boolean>={};let active=false,paused=false,disposed=false,muted=false,yaw=0,vx=0,vz=0,steer=0,score=0,combo=0,driftGrace=0,frame=0,clock=0,raf=0,accum=0;let mapOpen=false,pausedWithMap=false,style:DriveStyle='standard',lastEarned=0,mapPausing=false;
 let mode:TravelMode='car',driven=car,cameraOrbit=0,walkPhase=0,notice='',noticeUntil=0,dragging=false,lastPointerX=0,bikeLean=0,camRoll=0,roll=0,pitch=0;
