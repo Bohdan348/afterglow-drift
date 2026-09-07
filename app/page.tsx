@@ -9,9 +9,9 @@ import { generateSaved, saveMap, type GenOptions } from './gen-loader';
 import type { TownData } from './town-data';
 const MAP_KEY='afterglow.map';
 const GEN_KEY='afterglow.genmaps';
-const maps={coast:{title:'Coastline circuit',location:'PACIFIC COAST',description:'Sweeping corners along the coast.',number:'01'},costco:{title:'Costco parking lot',location:'COSTCO WHOLESALE',description:'Wide-open bays. Long, icy slides.',number:'02'},svitlodarsk:{title:'Svitlodarsk',location:'SVITLODARSK · UKRAINE',description:'Tree-lined streets, shops & reservoirs.',number:'03'},wurzburg:{title:'Würzburg',location:'WÜRZBURG · GERMANY',description:'Hilly streets, vineyards & the Main river.',number:'04'}};
+const maps={coast:{title:'Coastline circuit',location:'PACIFIC COAST',description:'Sweeping corners along the coast.',number:'01'},costco:{title:'Costco parking lot',location:'COSTCO WHOLESALE',description:'Wide-open bays. Long, icy slides.',number:'02'},svitlodarsk:{title:'Svitlodarsk',location:'SVITLODARSK · UKRAINE',description:'Tree-lined streets, shops & reservoirs.',number:'03'},wurzburg:{title:'Würzburg',location:'WÜRZBURG · GERMANY',description:'Hilly streets, vineyards & the Main river.',number:'04'},raceway:{title:'5-Lane Raceway',location:'RACEWAY · INFINITE',description:'Five wide lanes, flowing hills. Pass the traffic sideways.',number:'05'}};
 const isTown=(map:string)=>map==='svitlodarsk'||map==='wurzburg';
-const townTag=(id:MapId)=>id==='svitlodarsk'?'NEW':id==='costco'?'LOT':id==='wurzburg'?'HILLS':'COAST';
+const townTag=(id:MapId)=>id==='svitlodarsk'?'NEW':id==='costco'?'LOT':id==='wurzburg'?'HILLS':id==='raceway'?'RACE':'COAST';
 const vehicles:[VehicleId,string,string,string][] = [
   ['coupe','Sports Coupe','RWD · Rear-wheel drive · Balanced drift','car'],
   ['porsche','Porsche','Twin-turbo flat-six · Sharper entry & exit','car'],

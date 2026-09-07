@@ -1379,3 +1379,42 @@ Both GLB self-contained (textures embedded).
     --remote-debugging-port=9222 --disable-backgrounding-occluded-windows
     --disable-renderer-backgrounding --disable-background-timer-throttling
     (скрытое/перекрытое окно macOS иначе гасит rAF → физика на 0).
+
+## Задача R — 5-lane beateless raceway + трафик + бонус обгона в дрифте   статус: IN PROGRESS
+Автор: Агент-R
+Файлы: app/racetrack.ts (новый) + app/race.ts + app/page.tsx + NOTES. НЕ трогать town*/gen-*/npc.ts.
+Коммит: backup-raceway → feature-raceway (racetrack.ts, race.ts, page.tsx, NOTES; tools/ не коммитить).
+Стиль: код БЕЗ комментариев, как в проекте.
+Гейт: Econ DONE (c0165c3), RidePack DONE (d54ac0c), worktree чистый.
+Дизайн (реализовано):
+  - карта raceway в MapId; 5 полос по 3.5м (17.5м асфальт, половинка 8.75), остат ALLOW бордюр
+    RHLF+.3 (мягкий отбой как coast), berm 4м, травяной спуск 0.45 до 46м, far-ground на -31;
+  - бесконечная односторонняя трасса: yaw(s)=YAW0+.5sin(s/520)+.42sin(s/237)+.24sin(s/141),
+    позиция — интегрирование forward (детерминированная цепь); высота H(s)=9sin(s/880)+6sin(s/310),
+    банк .06sin(s/700); ЧАНКИ 1200м, окно [floor-1..floor+3], poses RES=2м, распростр/base BEHIND=1500
+    AHEAD=4900, rebase (dropFront) при сдвиге; физика и рендер — ОДНА функция (HOf+Bank+Terr);
+  - постоянный левый конец без ребейза координат (в тесте 60с ок);
+  - трафик 8-14 NPC (InstancedMesh кузов+4 колеса, spin по s/.36), правая/средняя полосы,
+    speed 17-25м/с (55-80% от машины), yield-сближение, respawn ahead через top-up;
+  - OVERTAKE: player прокат ИГРОКА через s NPC в дрифте → +12 pts к score+combo+scoreQ, notice
+    "OVERTAKE +12 PTS", cooldown .8с/NPC; мягкий push 3.2м от NPC (не жёсткий коллайдер);
+  - __raceway: {s,yaw,chunks,npcs:[{s,lane,spd,off}],spawn}.
+СТАТУС: код написан, интеграция сделана; дальше — gates (tsc/build/builder), tools/cdp_raceway.mjs,
+  верификация, коммиты.
+
+## Задача R — ФЛИКЕР-ФИКС (чёрный квадрат на пол-экрана на raceway)   статус: DONE
+  Жалоба игрока: периодический чёрный «квадрат» на ~верхних 60-70% экрана + мерцание на raceway.
+  Диагностика (биссекция скрытием мешей без правки сцены): изолирован dashGeo (разметка, 4 лейна);
+    показ ЛЮБОГО dash-меша → фликер; скрытие всех road-meshes → чисто. Красный тест matDash (#ff2a00):
+    blob остаётся pure black (0-9 RGB) → чёрный слэб НЕ отрисовка разметки, а артефакт пайплайна.
+  Не помогли: сила bloom (.22→.10/.05), порог (.22→.55), MSAA отключение — только полное
+    отключение UnrealBloomPass (enabled=false) убирало фликер.
+  КОРЕНЬ: WebGLRenderTarget(innerWidth, innerHeight, {type: HalfFloatType, samples:2}) под
+    EffectComposer на macOS (ANGLE→Metal) — при контенте raceway периодически пишет чёрный слэб
+    (NaN/деградация half-float mip-ценки). Coast/прочие карты НЕ триггерили (иной draw-сет).
+  ФИКС (app/visuals.ts, createEffects): {type: T.UnsignedByteType, samples:2} — bloom и MSAA остаются.
+  Верификация (свежий инстанс, 22 кадра, autopilot, /tmp/blackness.py):
+    raceway avg 183.3, 0/22 чёрных (было 22/22 с мерцанием 40-90% чёрных); coast avg 183-188, 0 чёрных.
+  Gates: tsc/build/electron-builder OK. Диагностический код (__rwyNo*/__cam/__raceSky/__bloom/red dash)
+    из racetrack/race/visuals удалён полностью.
+  Открытый хвост: консольный харнесс tools/cdp_raceway.mjs (фазы C/D/E) — вернуться к нему для DONE.
