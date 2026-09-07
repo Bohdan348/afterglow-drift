@@ -774,7 +774,7 @@ unclassified, остальные w6 residential), здания/рощи/пруд
 
 ====================================================================
 
-## Задача CARS — два новых транспорта: BMW M4 GT3 (G82) + Ford Mustang GT3   статус: IN PROGRESS
+## Задача CARS — два новых транспорта: BMW M4 GT3 (G82) + Ford Mustang GT3   статус: DONE
 Автор: Агент-CARS
 Согласованный порядок: ШАГ A — ТОЛЬКО ассеты в public/ (изолированно, НЕ трогать
     race.ts/page.tsx/wallet-store.ts/settings-store.ts), коммит backup-cars-pre →
