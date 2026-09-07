@@ -1346,3 +1346,36 @@ Both GLB self-contained (textures embedded).
   window.__hud не содержит 'style' (ложные проверки стиля убраны из харнесса).
 Временные tools/dbg_ride_flat.mjs, dbg_ride_err.mjs — диагностика, удалить/не коммитить.
 Коммиты: backup-ride → feature-ridepack (app/race.ts + NOTES.txt).
+
+## Задача Econ — перебаланс заработка за дрифт (качество, перекладки, анти-круг)   статус: IN PROGRESS
+Автор: Агент-Econ
+Файлы: ТОЛЬКО app/race.ts + app/page.tsx (подпись в гараже). НЕ трогать town.ts/town-details.ts/
+    gen-*/npc.ts/wallet-store.ts/globals.css. Коммит: backup-econ → feature-econ (race.ts, page.tsx,
+    NOTES; tools/ НЕ коммитить — tools/ уже в .gitignore).
+Гейт перед стартом: RidePack DONE (d54ac0c) — подтверждено, race.ts свободен (worktree чист).
+Концепция (реализовано):
+  - качество q = clamp((slipAngle-18)/27,0,1) * clamp(speed/25,.4,1) — per-frame;
+  - перекладка = смена знака lateral при |lateral|>1.5 в непрерывном заносе → бонус
+    FLIP_PTS=40*(.5+.5*q)*min(1,speed/20) + серия mult *= 1.4 (cap MULT_MAX=5);
+  - БАЗОВОЕ накопление ×0.3 (только перекладки платят по-настоящему);
+  - анти-круг: занос БЕЗ перекладок (любой угол, включая 80°-донат на costco) → 10% базы;
+  - курс $=floor(scoreQ/RATE), RATE=3; остаток scoreQ переносится между банками (квант $ целый);
+  - finalizeDrift() на конце заноса (driftGrace<=0), в bankScore() и reset() (телепорт =
+    закрытие сессии); HUD score/earned, tost '+$N DRIFTED' сохранены;
+  - конверсия «100 очков = $1» убрана → подсказка гаража в page.tsx обновлена
+    («hard flicks & counter-steer flips pay big, slow circles pay almost nothing»);
+  - __sus для CDP: +q/+flips/+mult/+slip.
+Верификация CDP (tools/cdp_econ.mjs) — 0 FAIL, консоль NONE:
+  - PHASE A costco W+D+SPACE круговой/донат 8с: slip до 80.9°, q=1, перекладок 0, заработано $2
+    (после перебаланса было $77 → ×0.03); raw score>0 (дрифт реально шёл);
+  - PHASE B Würzburg флик-серия 7с: 8 перекладок, mult cap 5, заработано $60 (≈$8.5/с);
+    с учётом ~50% эффективности реальной игры → porsche $6000 за ~5-7 мин городского дрифта;
+  - PHASE C регресс wallet: дефолты, блокировка покупки без денег, buy porsche, spendCash
+    (blocked+ok), m4 locked — всё OK;
+  - toast '+$60 DRIFTED' появился; HUD score/вэйстинг не сломаны.
+  - Гейт: npx tsc --noEmit OK, npm run build OK, electron-builder mac-arm64 OK.
+  - Регрессии по другим задачам не проводились этим агентом (нет общих файлов).
+Замечание: для стабильных CDP-прогонов приложение запускается с
+    --remote-debugging-port=9222 --disable-backgrounding-occluded-windows
+    --disable-renderer-backgrounding --disable-background-timer-throttling
+    (скрытое/перекрытое окно macOS иначе гасит rAF → физика на 0).
