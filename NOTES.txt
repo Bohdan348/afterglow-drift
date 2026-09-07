@@ -1297,3 +1297,21 @@ Both GLB self-contained (textures embedded).
   для height:, paveList). JSON карт, race.ts, page.tsx, gen-*, детали, сетап-стрим НЕ менялись.
   Временные tools/dbg_t2_*.mjs (probe/scan/edge/post) и dbg2_start.mjs — диагностика, удалить/не коммитить.
 Коммиты: backup-t2 → feature-t2-collisions.
+
+====================================================================
+
+## Задача RidePack — кузов по склону рельефа + реалистичный дрифт-руль   статус: IN PROGRESS
+Автор: агент RidePack
+Файлы: ТОЛЬКО app/race.ts (+ верификация tools/cdp_ride.mjs — не коммитить). НЕ трогать town.ts
+    (T/T2 DONE, height = driveHeight — источник высот для склона), page.tsx, npc.ts, JSON, CARS.
+A) Наклон кузова по склону: 4 точки земли на осях колёс (groundY через town.height=driveHeight),
+    slopeRoll=-atan2(·)/4·track, slopePitch=atan2(·)/4·wb, сглаживание 1-exp(-dt·k) k=5 (τ=0.2с),
+    кватернион q = Yaw · SlopePitch · SlopeRoll · RollZ · PitchX (существующие крен/питч F2b —
+    поверх склона); identity на равнине; байк — та же цепочка qYaw·qSlope·qLean; foot не трогаем;
+    камера не меняется. В __sus добавлены slopeRoll/slopePitch/steer/lat + wheelFront/wheelRear/
+    countersteer.
+B) Дрифт-руль: frontVis = -(steer·0.4)+countersteer, countersteer = -sign(lat)·min(|lat|·0.35,0.35)
+    (кадровое сглаживание dt·8/10); задние rearVis = sign(lat)·min(|lat|·0.025, 0.05, 0.08 если
+    throttle>0.5 && drifting), сглаживание dt·6; вращение колёс вокруг оси (rotation.x) сохранено;
+    коллизии/скорости/камера не меняются.
+Коммиты: backup-ride → feature-ridepack (app/race.ts + NOTES.txt).
