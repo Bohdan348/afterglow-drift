@@ -26,7 +26,9 @@ export async function loadCarModelMulti(url:string):Promise<CarModel|null>{
     meshes.forEach(m=>{m.geometry.applyMatrix4(bake);m.geometry.computeVertexNormals()});
     flat.updateMatrixWorld(true);
     const carH=new T.Box3().setFromObject(flat).max.y;
-    const {clusters,oc}=wheelClusters(meshes,carH);
+    const {clusters:all,oc}=wheelClusters(meshes,carH);
+    let clusters=all;
+    if(all.length!==4){const paired=all.filter(cl=>all.some(o=>o!==cl&&Math.abs(o.c.x+cl.c.x)<.35&&Math.abs(o.c.z-cl.c.z)<.35));if(paired.length===4)clusters=paired}
     if(clusters.length!==4){console.warn('Glb multi: expected 4 wheels, found',clusters.length);return null}
     const pivots:T.Group[]=[];
     for(const cl of clusters){const pivot=new T.Group();pivot.position.copy(cl.c);pivot.rotation.order='YXZ';pivot.userData.glb=true;for(const m of cl.ms){const {c}=oc(m);m.geometry.translate(-c.x,-c.y,-c.z);pivot.add(m)}flat.add(pivot);pivots.push(pivot)}

@@ -1074,7 +1074,7 @@ Both GLB self-contained (textures embedded).
 
 ====================================================================
 
-## Задача FIXGO — купленная машина (BMW M4 GT3 / Ford Mustang GT3) не отображается: «перс в воздухе»   статус: IN PROGRESS
+## Задача FIXGO — купленная машина (BMW M4 GT3 / Ford Mustang GT3) не отображается: «перс в воздухе»   статус: DONE (проверено CDP: cdp_fixgo.mjs + cdp_m4_model.mjs)
 Автор: Агент-FIXGO
 Проблема (подтверждена планировщиком по race.ts:87):
     activeCar = () => garage[selected]?.group ?? carGroups[selected] ?? car;
@@ -1082,5 +1082,46 @@ Both GLB self-contained (textures embedded).
     activeCar() возвращает carGroups[m4/mustang] — заранее созданную ПУСТУЮ группу (visible=false).
     applyCharacter() в car-режиме приклеивает персонажа к driven=невидимой группе → «перс в воздухе».
     CDP-тесты CARS ждали __load.m4===true до гонки; реальный игрок стартует мгновенно → баг виден.
-Файлы: ТОЛЬКО app/race.ts (+ page.tsx если потребуется). НЕ трогать чужие секции/файлы.
-Ожидаемые коммиты: backup-fixgo → feature-fixgo-visibility (race.ts, page.tsx?, NOTES; tools/* НЕ коммитить).
+Диагностика: подтверждено блокировкой URLs через CDP Network.setBlockedURLs (vehicle=m4, машина «едет»
+    на пустой группе) и Network.emulateNetworkConditions (throttle 4MB/s) — GLB (~61MB) грузится ~60–110s.
+Файлы: app/race.ts, app/page.tsx, app/car-multi-glb.ts, public/bmw_m4_gte.glb (новое безтекстурное).
+Сделано:
+  1) НЕИСЧЕЗАЮЩИЙ FALLBACK в race.ts:
+     - HUD-тип + window.__hud получили loading:boolean.
+     - activeCar (стр. 87): garage[selected]?.group ?? (coupe|bike?car : (garage.coupe?.group ?? car)) —
+       пока garage[selected]===null ездит ВИДИМАЯ машина (купе), не пустая группа.
+     - loadingCar() === (selected!=='coupe'&&selected!=='bike'&&garage[selected]===null).
+     - loadCarModelMulti().then (стр. 98): при активной сессии копирует позицию/угол driven→g, при
+       mode==='car' делает driven=g + applyCharacter() + emit() — ещё видно на земле (макс|carY|=0.00).
+     - emit(): loading=loadingCar() и в onHUD, и в __hud.
+  2) page.tsx: travel-mode показывает « · LOADING MODEL…» пока loading===true (что машина догружается);
+     initial useState<HUD> получил loading:false.
+  3) МОДЕЛЬ M4 БЕЗ ТЕКСТУР (по запросу пользователя, десктоп-исходник 2022-full-carbon-bmw-m4-gt3-g82):
+     - tools/strip_m4_textures.mjs + @gltf-transform/prune (вручную /tmp/gltx, npm i не в репо):
+       51 материала покрашены по группам имён (carpaint #262a30 metal .85/rough .42; carbon #17191d;
+       glass/окна #0f161d прозрачные; tyre #0d0e10; rim/disc #3a4046; chrome #98a0a7; передние эмиссивные
+       #ffffff str 3; задние/номер #5c1510 str 2 (#ff1f0d); остальное — тёмно-серые тона; fallback #2a2d31),
+       текстуры/изображения/сэмплеры удалены, KHR_materials_emissive_strength добавлен, файл 46.6MB→15.9MB.
+     - Колёса у этой модели слиты в ОДИН меш на все 4 колеса (EXT_Tyre/EXT_Rim/EXT_Disc span x±1) →
+       tools/split_m4_wheels.mjs разрезает их k-means по (x,z) на 4 колеса и переэкспортирует через
+       GLTFExporter (15.9→18.1MB), итог public/bmw_m4_gte.glb 18.1MB.
+     - car-multi-glb.ts: защита от «не-колесной части» (ремень безопасности похож на диск) —
+       после кластеризации отбрасываются кластеры без зеркального партнёра по x (колёса всегда
+       парные): if(all.length!==4) try mirrored-filter, иначе null.
+  4) Харнесс tools/cdp_fixgo.mjs (throttle 4MB/s): m4 и mustang — покупка+PLAY до догрузки GLB.
+Приёмка (последний прогон, packaged .app, FAILURES 0):
+    - m4: ОК buy+PLAY сразу / vehicle=m4 / __load.m4=false на старте / loading=true / travel-mode
+      «LOADING MODEL…» / fallback едет (240km/h) / GLB догрузился t=22s / handoff: vehicle=m4,
+      loading=false / max|carY|=0.00 / maxYawJump=0.000 / roll OK / speed OK.
+    - mustang: ОК куплена (ретрай-клик до owned) / vehicle=mustang на старте / loading=true /
+      fallback едет / GLB t=20s / финал loaded&not-loading.
+    - регрессия 6 марок: coupe 99 / porsche 128 / m8 118 / bike 86 / m4 130 / mustang 137 km/h.
+    - консоль: NONE. tsc --noEmit чисто; npm run build OK; electron-builder --mac --arm64 OK.
+    - cdp_m4_model.mjs (безтекстурная m4): GLB грузится мгновенно, drives, roll, консоль NONE — FAILURES 0.
+Ожидаемые коммиты: backup-fixgo (be3581a, сделан) → feature-fixgo-visibility
+    (app/race.ts, app/page.tsx, app/car-multi-glb.ts, public/bmw_m4_gte.glb, NOTES.txt;
+    tools/* и app/format.ts НЕ коммитить).
+Хвосты: 1) редкий флэйк сессии CDP (однажды весь прогон дал низкие скорости и сбой покупки mustang;
+     повторный запуск на свежем инстансе .app — чисто; если повторится — перезапустить .app).
+     2) Скорости до 240km/h в тестах — персистентный driveStyle:drift в localStorage (не баг).
+     3) public/bmw_m4_gte.glb теперь 18.1MB без текстур (было 61MB) — то же для mustang не делали.
