@@ -1300,18 +1300,49 @@ Both GLB self-contained (textures embedded).
 
 ====================================================================
 
-## Задача RidePack — кузов по склону рельефа + реалистичный дрифт-руль   статус: IN PROGRESS
+## Задача RidePack — кузов по склону рельефа + реалистичный дрифт-руль   статус: DONE
 Автор: агент RidePack
 Файлы: ТОЛЬКО app/race.ts (+ верификация tools/cdp_ride.mjs — не коммитить). НЕ трогать town.ts
     (T/T2 DONE, height = driveHeight — источник высот для склона), page.tsx, npc.ts, JSON, CARS.
-A) Наклон кузова по склону: 4 точки земли на осях колёс (groundY через town.height=driveHeight),
-    slopeRoll=-atan2(·)/4·track, slopePitch=atan2(·)/4·wb, сглаживание 1-exp(-dt·k) k=5 (τ=0.2с),
-    кватернион q = Yaw · SlopePitch · SlopeRoll · RollZ · PitchX (существующие крен/питч F2b —
-    поверх склона); identity на равнине; байк — та же цепочка qYaw·qSlope·qLean; foot не трогаем;
-    камера не меняется. В __sus добавлены slopeRoll/slopePitch/steer/lat + wheelFront/wheelRear/
-    countersteer.
-B) Дрифт-руль: frontVis = -(steer·0.4)+countersteer, countersteer = -sign(lat)·min(|lat|·0.35,0.35)
-    (кадровое сглаживание dt·8/10); задние rearVis = sign(lat)·min(|lat|·0.025, 0.05, 0.08 если
-    throttle>0.5 && drifting), сглаживание dt·6; вращение колёс вокруг оси (rotation.x) сохранено;
-    коллизии/скорости/камера не меняются.
+—— Реализация (app/race.ts) ——
+• Константы: VIS_STEER=.4 (вклад steer в руль), CS_K=.35, CS_MAX=.35 (countersteer), SLOPE_K=5
+  (сглаживание склона, τ=0.2с), REAR_K=.025, REAR_BASE=.05, REAR_DRIFT=.08 (задние колёса).
+• Состояние: slopeRoll, slopePitch, frontVis, rearVis, counterVis, lat + крен-цели rollT/pitchT;
+  euler/кватернионы eSlopeP/eSlopeR/eLean + qSlopeP/qSlopeR/qLean; reset() обнуляет склон/руль.
+• Склон (в physics(), после физики, до композиции): выборка 4 точек земли на осях колёс —
+  track = bike?0.4:1.02, wb = bike?0.7:1.45, точки от rx/rz/fx/fz (существующие),
+  slopeRoll += (atan2(-(sa+sc-sb-sd), 4·track) - slopeRoll)·ssk, ssk=1-exp(-dt·SLOPE_K);
+  slopePitch += (atan2(sa+sb-sc-sd, 4·wb) - slopePitch)·ssk (фронт-минус-зад / полный wb).
+• Композиция: car q = qYaw·qSlopeP·qSlopeR·qRoll·qPitch; bike q = qYaw·qSlopeP·qSlopeR·qLean
+  (заменил rotation.set(0,yaw,lean)). На равнине Slope≈Identity → кузов как было (визуально 0).
+• Дрифт-руль (стандарт/дрифт-стиль): csT = drifting ? -sign(lat)·min(|lat|·CS_K,CS_MAX) : 0
+  (gate по drifting — критично: без него контрруль появлялся и в обычных поворотах); counterVis
+  сглаживается dt·8; frontVis → -(steer·VIS_STEER + counterVis), dt·10; rear → sign(lat)·
+  min(|lat|·REAR_K, throttle>0.5&&drifting ? REAR_DRIFT : REAR_BASE), dt·6; lat = lateral в конце
+  physics. Вращение колёс (rotation.x от скорости, driftVis) НЕ тронуто — только визуальный yaw.
+• __sus расширен: slopeRoll, slopePitch, wheelFront, wheelRear, countersteer, steer, lat.
+—— Верификация tools/cdp_ride.mjs (св. .app, port 9222) —— 0 FAILURES, консоль NONE.
+• 0: поля __sus на месте и конечны. A (Coast flat): едет 211 км/ч, slope≈0.0000, в стабильном
+  прямом (|lat|<1) wheelFront=0.000 ровно (контрруль НЕ включается без дрифта; 0.3 появляется
+  только при реальном заносе о стену = корректно).
+• B (Würzburg): едет 308–311 км/ч (регирессия ~305), наклон появляется maxMag=0.055–0.069,
+  питч и ролл оба достигаются (pitchSeen=3..23, rollSeen=23..26), первый семпл slopePitch=-0.024
+  vs мгновенная земля expPitch=0.010 (фильтр vs instant — ок). B2: возврат к горизонту <0.02 рад
+  за 152–154 мс (τ=0.2с выполнен).
+• C (дрифт): 40 семплов, max|lat|=28..42, countersteer max=0.350 (=CS_MAX), фронт idёт по
+  -(steer·0.4+counter) avgErr=0.017–0.027, знак сопротивляется lateral 24/24–38/39, задние по знаку
+  lateral 36–38/40, |rear|≤0.080 (=REAR_DRIFT), фликер-sign flips=1–2, едет 152–195 км/ч.
+• D (bike): едет 200–218 км/ч, mode=bike, slope конечен (цепочка qYaw·qSlope·qLean работает).
+• E (coupe, F2b-регрессия): крен в повороте max|roll|=0.130 как в базе, camRoll возвращается к ~0,
+  R/E работают, pause() замораживает физику (speed не меняется). Overlay паузы под API-стартом не
+  рендерится (React started=false без клика меню) — проверено отдельно menu-флоу: cdp_f_suspension
+  «Esc opens pause overlay» PASS.
+—— Регрессии (св. .app) ——
+• cdp_t_reli.mjs: PART A/B/D OK. Единственный FAIL — PART C Svitlodarsk mm=0.06: документировано
+  в feature-t2-collisions как ОЖИДАЕМОЕ (__mm = верх покрытия +0.06 = carY; не регрессия RidePack).
+• cdp_t_floor.mjs 0 FAIL (пол не торчит над дорогой), cdp_t2_poke.mjs 0 FAIL (physics==driveHeight,
+  restGap 0.000, jolt<1м). Консоль NONE во всех прогонах.
+Замечание по CDP: счётчики колеса на видимом меше — только через physics-флоу (__sus), т.к.
+  window.__hud не содержит 'style' (ложные проверки стиля убраны из харнесса).
+Временные tools/dbg_ride_flat.mjs, dbg_ride_err.mjs — диагностика, удалить/не коммитить.
 Коммиты: backup-ride → feature-ridepack (app/race.ts + NOTES.txt).
