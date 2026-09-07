@@ -1122,6 +1122,33 @@ Both GLB self-contained (textures embedded).
     (app/race.ts, app/page.tsx, app/car-multi-glb.ts, public/bmw_m4_gte.glb, NOTES.txt;
     tools/* и app/format.ts НЕ коммитить).
 Хвосты: 1) редкий флэйк сессии CDP (однажды весь прогон дал низкие скорости и сбой покупки mustang;
-     повторный запуск на свежем инстансе .app — чисто; если повторится — перезапустить .app).
+      повторный запуск на свежем инстансе .app — чисто; если повторится — перезапустить .app).
      2) Скорости до 240km/h в тестах — персистентный driveStyle:drift в localStorage (не баг).
      3) public/bmw_m4_gte.glb теперь 18.1MB без текстур (было 61MB) — то же для mustang не делали.
+
+## Задача CityProps — слой уличных пропсов (заборы, шлагбаумы, билборды)   статус: IN PROGRESS
+Автор: Агент-CityProps
+Файлы: ТОЛЬКО app/gen-town.ts (места) + app/town-details.ts (отрисовка). НЕ трогать race.ts,
+    town.ts (коллизии/пол), page.tsx, town-data.ts, JSON карт.
+Цель: на городских картах (wurzburg/svitlodarsk — статичные, ген-миры kind city SAVED/INFINITE)
+    детерминированный слой пропсов:
+    - заборы вдоль задних границ кварталов (не-дорожные границы между зданиями), высота ~1.1,
+      палки+рельс, немного заглублены в землю (<0.1);
+    - шлагбаумы на въездах во дворы (service → pedestrian/двор), проезд возможен (арм поднят);
+    - билборды на primary/secondary/tertiary, вдоль дороги, с безопасным отступом от проезжей
+      части, коллизия у основания;
+    - деталь: лавки/урны у площадей/парков.
+Правила (критично): (1) детерминизм — хеш от координат клетки (ph(), как в gen-town), НЕ общий
+    rand() с последовательностью → стыки infinite-чанков без швов; одинаковый отбор для
+    статичных и ген-карт (общий код в town-details); (2) перф — InstancedMesh/box() по
+    материалам propBoxes, один draw-call на тип; (3) castShadow ТОЛЬКО у зданий (пропсы
+    receiveShadow, castShadow=false); в solids добавлять только шлагбаумы/заборы/билборды;
+    не перекрывать дороги/здания/воду (проверки границ), защита от z-fight;
+    (4) не ломать: деревья/траву/фонари, collider, рельеф T, дороги +0.06, крен/F2/F2b.
+Верификация: npx tsc --noEmit → npm run build → npx electron-builder --mac --arm64 → CDP
+    (tools/cdp_props.mjs + KeyW): видимость пропсов через __probe (top-d ≈ __mm+высота), no
+    overlap асфальт/здания (point-in-poly по JSON карты), проезд под билбордом/шлагбаумом без
+    застрявания, забор блокирует проход, детерминизм регенерации SAVED CITY тем же seed
+    (__gen.generateTown → selectGenWorld → сравнить __props).
+Коммиты: backup-props → feature-cityprops (app/gen-town.ts, app/town-details.ts, NOTES.txt;
+    tools/* и app/format.ts НЕ коммитить).
