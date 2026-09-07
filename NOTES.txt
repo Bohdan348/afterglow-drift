@@ -796,6 +796,28 @@ Both GLB self-contained (textures embedded).
 • mustang — multi-mesh (85 мешей/261 узел) → копируется как есть в public/ford_mustang.glb.
 • Проверка геометрии tools/cars_inspect.mjs (аналог wheelClusters по JSON+BIN):
   [впишут факт: оба по ровно 4 колеса FL/RL/FR/RR, перед/зад 2+2, tailMat].
+• ИТОГ ШАГ A (реализовано, обе валидированы через loadCarModelMulti):
+  • public/ford_mustang.glb (70,255,496 b, 84 меша, 260 узлов): из исходника удалён узел/меш
+    Object_119 (mat_591, underbody-кронштейн s(0.43,0.62,0.65) c(-0.34,0.55,0.44)) — единственный
+    ложный 5-й кластер (roundness-фильтр «близнеца» Object_110 не пропускает). Проверено
+    tools/mustang_probe.mjs + tools/mustang_fix.mjs. Результат: ровно 4 кластера.
+  • public/bmw_m4_gte.glb (60,931,288 b, 32 меша, 33 узла): Устарело bmw_split.mjs — автор-модель
+    СТОИТ (length вдоль Y, высота вдоль Z): bake rotX(+90) «(x,y,z)→(x,−z,y)» в позиции в месте
+    + новый identity-root (родительская rotation убрана). КРИТИЧНО: THREE boundingBox считается по
+    ВСЕМУ POSITION accessor, а не по индексируемым вершинам → для каждого компонента пишутся
+    СВОИ копии вершин (POSITION/NORMAL/TEXCOORD_0) + локальный index (u16/u32). Колёса — единые
+    связные примитивы на все 4 колеса → бакетирование треугольников по 4 k-means якорям (R=0.80)
+    в EXT_*_Wheel_0..3 (+ _stray); прочие примитивы — union-find components: крупные (≥2500
+    треугольников) своими мешами, мелкие слиты в ОДИН meshes m4_interior_detail (position-only,
+    широкий bbox → фильтр thin-X/round не пропускает). Сборщик tools/bmw_build.mjs.
+  • cars_loadcheck (реальный лоадер): M4 → wheels FL(-0.89,-1.54,y0.35) RL(-0.86,1.34,y0.36)
+    FR(0.88,-1.62,y0.36) RR(0.87,1.34,y0.36); mustang → FL(-0.90,-1.47,y0.34) RL(-0.87,1.31,y0.36)
+    FR(0.86,-1.48,y0.34) RR(0.89,1.30,y0.39); обе: tailMat есть, textures 0, front z<0.
+  • Важен нюанс: состояние в public/ НА МОМЕНТ МАСТЕР-СНИМКА EA78611 было older трактом
+    (bmw_split), т.к. ШАГ B ещё не завершён; ПЛАНИРОВЩИК пускорил снимок — пере-проверить что в
+    deployment фактически ушли финальные ассеты после feature-cars-assets.
+  • tools/cars_loadcheck.mjs stripTextures приведён к версии cars_frame.mjs (рекурсивное удаление
+    'index' внутри material extensions иначе GLTFLoader падает на extensions мёртвых текстур).
 —— ШАГ B —
 [заполняется после интеграции]
 
