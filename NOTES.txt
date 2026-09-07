@@ -488,7 +488,7 @@ unclassified, остальные w6 residential), здания/рощи/пруд
 
 ## G3 — app/page.tsx + globals.css (UI генератора)      статус: DONE (cdp_gen_saved.mjs + cdp_gen_infinite.mjs)
 ## G4 — app/race.ts (интеграция генеративной карты)     статус: DONE (cdp_g4_gen_gameplay.mjs + cdp_g4_stream.mjs)
-## Задача C — внутриигровая валюта $ + магазин машин (4 модели)   статус: IN PROGRESS
+## Задача C — внутриигровая валюта $ + магазин машин (4 модели)   статус: DONE (cdp_wallet.mjs + cdp_shop.mjs)
 Автор: Агент-C
 Согласованный порядок: ШАГ 1 wallet-store.ts (изолирован) → ШАГ 2 конверсия очков→$ в race.ts
     (НЕ до завершения G5) → ШАГ 3 магазин/GARAGE/SHOP в page.tsx (после G5).
@@ -509,25 +509,55 @@ unclassified, остальные w6 residential), здания/рощи/пруд
   localStorage): дефолты/PRICES/добавление/списание/блок при нехватке/покупка/повторная
   покупка блокирована/ownCar/отрицательный ввод/дробь/персист после рестарта/коррапт JSON/
   resetWallet/__wallet — 17/17 PASS.
-—— ШАГ 2 (BLOCKED, ждёт G5) ——
-• Подготовлено (не применялось): конверсия дрифт-очков score→$ по курсу 1$=100 очков при
-  завершении заезда (menu()/pause()/dispose() — актив=false неактивно; грейс). В race.ts score
-  копится в physics() (строка 138: drifting → score+=points), обнуляется в selectMap/
-  selectGenWorld (123/148), persist через emit→HUD. Планирую: import {addCash} из wallet-store
-  наверху; при окончании заезда cash+=floor(score/100), score=0; HUD-хук оставить как есть
-  (emit уже шлёт score; page узнаёт о накопленном из последнего HUD). ФАЙЛ НЕ ТРОГАЛСЯ —
-  G5 ещё PENDING и может править race.ts/page.tsx.
-—— ШАГ 3 (BLOCKED, ждёт G5) ——
-• Подготовлено (не применялось): в page.tsx — GARAGE/SHOP: в карточке CHOOSE CAR показыать
-  цену/BUY/OWNED ✓, баланс $, disabled при нехватке (красная цена); баланс в шапке/футере
-  меню и в HUD; тост «+$N» после заезда; startVehicle выбираем только среди owned
-  (coupe всегда owned). ФАЙЛ НЕ ТРОГАЛСЯ.
-Пересечения с G5: race.ts + page.tsx — оба держит/может править G5. Я НЕ трогаю их до
-    подтверждения DONE G5 в этой секции NOTES (статус G5 сейчас PENDING).
-Хвосты: после G5 → ШАГ 2 (race.ts), затем ШАГ 3 (page.tsx) + tools/cdp_wallet.mjs (CDP: покупка/
-    списание/повторная блокировка/нехватка blocked/конверсия после заезда/персист рестарта/
-    старт на купленной). Мои тестовые файлы tools/wallet_test.cjs (+сгоревший wallet_test.mjs)
-    не коммитятся, как и прочие tools/.
+Статус обновлён: G5 → DONE, новая Задача Z (удаление ген-карт) держит page.tsx+globals.css.
+ОБНОВЛЕНО 06.09:
+- G5 по секции ниже: DONE (cdp_g5_static/saved + pixelcheck). race.ts СВОБОДЕН.
+- Задача Z (удаление созданных игроком ген-карт) — DONE (commit a46ac3e, 36/36 PASS). page.tsx + globals.css СВОБОДНЫ — ШАГ 3 можно делать.
+—— ШАГ 2 (DONE, применено в race.ts + CDP-проверено) ——
+• Применено: import {addCash} из './wallet-store'; HUD-тип gets 'earned?:number'; стейт
+  lastEarned/mapPausing; emit() ловит пульс earned и сбрасывает; bankScore() —
+  n=ceil(score/100) (в пользу игрока), addCash(n), lastEarned=n, score=0,combo=0,emit();
+  вызывается: вход в pause() (НЕ при открытии карты — mapPausing guard в setMapOpen),
+  menu(), и вместо 'score=0' в selectMap() и selectGenWorld().
+• __hud debug сейчас включает score/combo/earned (для CDP/тоста).
+• Гейт: tsc — ЧИСТ, npm run build OK, electron-builder OK.
+• tools/cdp_wallet.mjs (CDP end-to-end на fresh инстансе) — 0 FAILURES:
+  coupe owned по умолчанию / 3 машины locked ✓; drift накапливает score ✓; map-open пауза НЕ
+  банит (score сохраняется, cash не растёт) ✓; Esc-pause банк cash += ceil(score/100) (184.5→$2) ✓;
+  пульс earned в __hud ✓; score после банка 0 ✓; персист localStorage ✓; menu() с 0 не дабл-банит ✓;
+  cash переживает Page.reload ✓; консоль NONE ✓.
+• Среда CDP (важно): rAF/физика живы ТОЛЬКО когда окно app реально видимо. В этой среде
+  ready-to-show не срабатывает → окно не показывалось → физика мёртва. ПАТЧ electron/main.cjs:
+  к once('ready-to-show') добавлен fallback setTimeout(show,2000) (mainWindow.isVisible() guard) —
+  окно гарантированно показывается. Нормальным пользователям поведение не меняет (ready-to-show
+  срабатывает раньше). Без патча CDP-гонки физики невозможны.
+• Тест-приёмы (найдено в этой фазе): зомби-инстанс может держать порт 9222 (pkill -9 не всегда
+  убивает все хелперы) — сверить ps/curl; при запуске конкурентного бинаря тест может подключиться
+  к СТАРОМУ инстансу. Использовать Emulation.setIdleOverride+setFocusEmulationEnabled+
+  Page.setWebLifecycleState(frozen→active) до и после PLAY; до накопления score держать W с
+  поллом до 30с (физика «жива» рывками). Скриншоты/пиксельные проверки в фоне ненадёжны.
+—— ШАГ 3 (DONE, применено в page.tsx + globals.css + CDP-проверено) ——
+• page.tsx: GARAGE/SHOP — overlay 'CHOOSE CAR' — теперь 'GARAGE · SHOP': у owned машины SELECT/✓,
+  у неowned цена + кнопка BUY (disabled+красная цена при нехватке, текст 'SHORT $N'/'BUY'); после
+  покупки авто выбирается автоматически; баланс 'BALANCE · $ N' в шапке оверлея и '$ N' в header
+  (.wallet-bal); тост '.coin-toast' «+$N DRIFTED» по пульсу HUD.earned (useEffect на hud.earned,
+  timeout 2.6s); startVehicle при старте клампится на owned (startVeh = owned? : 'coupe') в
+  startGame/createGenMap; travel-mode/меню используют startVeh. Импорт getWallet/buyCar/isOwned/PRICES.
+• globals.css: добавлены .car-card.locked/.car-price(.poor)/.car-buy(.disabled)/.car-select/
+  .wallet-bal/.coin-toast + @keyframes toast-in.
+• Гейт: tsc ЧИСТ, npm run build OK, electron-builder OK.
+• tools/cdp_shop.mjs (CDP end-to-end on fresh инстансе) — 0 FAILURES:
+  BALANCE $0 в оверлее+header ✓; coupe selected/owned, прочие locked с ценой ($6,000/$3,500) ✓;
+  BUY disabled+красная цена при нехватке ✓; addCash(6000)→BUY enabled, цена норма ✓; BUY porsche →
+  cash 0, owned, выбран (✓), BUY исчез (повторная блокировка) ✓; bike locked при cash 0 ✓;
+  персист localStorage ✓; PLAY → старт на купленном Porsche (__hud.vehicle=porsche, HUD PORSCHE) ✓;
+  реальный дрифт → Esc → тост '+$1 DRIFTED' ✓; консоль NONE ✓.
+Проверки UI магазина (покупка/списание/нехватка/старт) — валидны и повторяемы (запуск cdp_wallet.mjs
+  и cdp_shop.mjs на fresh инстансе даёт стабильный результат).
+Хвосты по Задаче C: закрыта. Осталось (по желанию пользователя): коммит feature-c-wallet+shop.
+  Файлы под коммит: app/wallet-store.ts, app/race.ts, app/page.tsx, app/globals.css,
+  electron/main.cjs (патч show-fallback — без него CDP-гонки невозможны в этой среде), NOTES.txt.
+  tools/* (cdp_wallet/cdp_shop/wallet_test и диагностики) НЕ коммитятся.
 
 ## G5 — тестер/регрессия фазы генерации                  статус: DONE (cdp_g5_static/saved + pixelcheck)
 Автор: один агент выполняет G3 → G4 → G5 ПОСЛЕДОВАТЕЛЬНО (без параллели внутри).
@@ -694,4 +724,36 @@ unclassified, остальные w6 residential), здания/рощи/пруд
   глобальная регрессия статичных карт не затронута (✕ только у .gen-card). Хвосты: 320px-крайний случай
   тем же тестом (✕ 34px в угол влезает); на реальных touch-устройствах Кейс pointer:coarse.
 Коммиты: backup-z-pre (06250a0) → feature (см. git log).
+====================================================================
+
+## Задача F — визуальный «подвесочный» крен кузова + наклон камеры   статус: IN PROGRESS
+Автор: агент F
+Файлы: ТОЛЬКО app/race.ts. НЕ трогать page.tsx/globals.css/wallet-store.ts/town-*/gen-*.
+Цель: силовой крен поверх существующей эмпирической физики (массу/инерцию/точки контакта НЕ вводить).
+    Читать только готовые сигналы физики (lateral/longitudinal/speed/throttle/brake/steer) — физику
+    physics() НЕ менять; это чисто визуальный слой.
+Что есть в race.ts (проверено):
+    - physics(): longitudinal/lateral (local axes, строка 134), speed, throttle=(W?1:0)-(S?1:0),
+      brake=!!SPACE, steer, slipAngle, drifting (140), style. Рендер кузова машин — строка 141
+      else-ветка: driven.rotation.set(0,yaw,-steer*min(.035,speed*.001)). Байк — if(biking) с bikeLean
+      (rotation.z) — НЕ трогать.
+    - updateCamera (130): camRoll для bike → bikeLean*.5, для машин → 0; в конце camera.rotateZ(camRoll);
+      кламп камеры в bounds (TOWN / saved-gen) — сохранить; fov-отзыв от скорости — сохранить.
+Замечания по среде: race.ts содержит ранее внесённые правки C (wallet: addCash/bankScore) и G4 (gen-чанки)
+    — их не трогать; tsc --noEmit ЧИСТ (exit 0), build OK (проверка предыдущих DONE перед стартом).
+План (визуальный слой, race.ts):
+    - переменные: roll=0, pitch=0 (сглаживаемые крены кузова), переиспользуемые Euler/Quaternion
+      eYaw/eRoll/ePitch/qRoll/qPitch (без аллокаций в цикле).
+    - car-ветка рендера кузова: rollTarget=clamp(lateral*min(speed,120)*kRoll,±maxRoll) (kRoll=.0042,
+      maxRoll=.13); pitchTarget=clamp((разгон: min(1,long*0.004)*.055)-(тормоз SPACE/S при speed>6:.06),
+      ±.06); сглаживание roll+=(rt-roll)*(1-exp(-dt*5)), pitch k=6.5; композиция
+      driven.quaternion = Y(qYaw,euler 0,yaw,0) · RollZ(roll) · PitchX(pitch) — при yaw=90° крен боком,
+      не «шпагат»; на прямой (lateral≈0, speed) roll→0. dash-без-стоячки: при speed≈0 pitch→0.
+    - reset(): сброс roll=pitch=0 (визуальные переменные; остальная логика reset не меняется).
+    - updateCamera: для машин цель camRoll=roll*0.3 с k чуть выше кузова (dt*6.5) — плавно догоняет,
+      без болтанки; байк/фут — прежнее (bikeLean*.5; 0).
+    - __hud (дебаг-хук, emit()): добавить {roll,pitch,camRoll} в window.__sus для CDP-артефакта.
+    - DONE НЕ выставляется, пока не пройдут: tsc/build/electron-builder/CDP (cdp_f_suspension.mjs:
+      KeyW на coast/wurzburg скорость прежнего диапазона, R/E/M/Esc, крен-артефакт, камера-наклон
+      плавно, консоль NONE, регрессия cdp_g4_gen_gameplay/cdp_g4_foot если в tools/).
 

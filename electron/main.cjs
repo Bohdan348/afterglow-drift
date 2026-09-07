@@ -110,6 +110,11 @@ function createWindow() {
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
   });
+  setTimeout(() => {
+    if (!mainWindow.isDestroyed() && !mainWindow.isVisible()) {
+      mainWindow.show();
+    }
+  }, 2000);
 
   const url = isDev
     ? `http://localhost:${DEV_PORT}`
