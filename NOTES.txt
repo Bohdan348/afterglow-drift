@@ -726,34 +726,49 @@ unclassified, остальные w6 residential), здания/рощи/пруд
 Коммиты: backup-z-pre (06250a0) → feature (см. git log).
 ====================================================================
 
-## Задача F — визуальный «подвесочный» крен кузова + наклон камеры   статус: IN PROGRESS
+## Задача F — визуальный «подвесочный» крен кузова + наклон камеры   статус: DONE (tools/cdp_f_suspension.mjs, 0 FAIL; регрессия cdp_g4_gen_gameplay + cdp_f_foot зелёные)
 Автор: агент F
 Файлы: ТОЛЬКО app/race.ts. НЕ трогать page.tsx/globals.css/wallet-store.ts/town-*/gen-*.
 Цель: силовой крен поверх существующей эмпирической физики (массу/инерцию/точки контакта НЕ вводить).
     Читать только готовые сигналы физики (lateral/longitudinal/speed/throttle/brake/steer) — физику
     physics() НЕ менять; это чисто визуальный слой.
-Что есть в race.ts (проверено):
-    - physics(): longitudinal/lateral (local axes, строка 134), speed, throttle=(W?1:0)-(S?1:0),
-      brake=!!SPACE, steer, slipAngle, drifting (140), style. Рендер кузова машин — строка 141
-      else-ветка: driven.rotation.set(0,yaw,-steer*min(.035,speed*.001)). Байк — if(biking) с bikeLean
-      (rotation.z) — НЕ трогать.
-    - updateCamera (130): camRoll для bike → bikeLean*.5, для машин → 0; в конце camera.rotateZ(camRoll);
-      кламп камеры в bounds (TOWN / saved-gen) — сохранить; fov-отзыв от скорости — сохранить.
-Замечания по среде: race.ts содержит ранее внесённые правки C (wallet: addCash/bankScore) и G4 (gen-чанки)
-    — их не трогать; tsc --noEmit ЧИСТ (exit 0), build OK (проверка предыдущих DONE перед стартом).
-План (визуальный слой, race.ts):
-    - переменные: roll=0, pitch=0 (сглаживаемые крены кузова), переиспользуемые Euler/Quaternion
-      eYaw/eRoll/ePitch/qRoll/qPitch (без аллокаций в цикле).
-    - car-ветка рендера кузова: rollTarget=clamp(lateral*min(speed,120)*kRoll,±maxRoll) (kRoll=.0042,
-      maxRoll=.13); pitchTarget=clamp((разгон: min(1,long*0.004)*.055)-(тормоз SPACE/S при speed>6:.06),
-      ±.06); сглаживание roll+=(rt-roll)*(1-exp(-dt*5)), pitch k=6.5; композиция
-      driven.quaternion = Y(qYaw,euler 0,yaw,0) · RollZ(roll) · PitchX(pitch) — при yaw=90° крен боком,
-      не «шпагат»; на прямой (lateral≈0, speed) roll→0. dash-без-стоячки: при speed≈0 pitch→0.
-    - reset(): сброс roll=pitch=0 (визуальные переменные; остальная логика reset не меняется).
-    - updateCamera: для машин цель camRoll=roll*0.3 с k чуть выше кузова (dt*6.5) — плавно догоняет,
-      без болтанки; байк/фут — прежнее (bikeLean*.5; 0).
-    - __hud (дебаг-хук, emit()): добавить {roll,pitch,camRoll} в window.__sus для CDP-артефакта.
-    - DONE НЕ выставляется, пока не пройдут: tsc/build/electron-builder/CDP (cdp_f_suspension.mjs:
-      KeyW на coast/wurzburg скорость прежнего диапазона, R/E/M/Esc, крен-артефакт, камера-наклон
-      плавно, консоль NONE, регрессия cdp_g4_gen_gameplay/cdp_g4_foot если в tools/).
+—— Задача F (реализовано, race.ts) ——
+• Переменные: roll=0, pitch=0 (сглаживаемые крен кузова), переиспользуемые eYaw/eRoll/ePitch (Euler)
+  и qRoll/qPitch (Quaternion) — ВСЕГО 0 аллокаций в цикле (память не растёт).
+• car-ветка рендера кузова (в physics(), последняя else-ветка):
+  - rollTarget=clamp(-lateral*min(speed,120)*0.0042, ±0.13) — знак «−»: при повороте налево (A)
+    внешняя сторона (правый борт) уходит вниз; на прямой (lateral≈0) roll→0; max 0.13 рад (~7.5°).
+  - pitchTarget=clamp(разгон: min(1,long*0.004)*0.055 − тормоз/назад: (SPACE|S при speed>6)*0.06, ±0.06);
+    нос вниз при торможении, вверх при разгоне; dash-защита: при стоячке (speed≈0) pitch→0.
+  - Сглаживание (инерция подвески): roll+=(rt-roll)*(1-exp(-dt*5)), pitch k=6.5.
+  - Композиция: driven.quaternion = Euler(0,yaw,0) · RollZ(roll) · PitchX(pitch) — при yaw≠0 крен
+    идёт вокруг ЛОКАЛЬНОЙ оси (при 90° — боком, не «шпагат»); кузов ровен на прямой (roll 0).
+  - Байк-ветка (rotation.z=bikeLean) НЕ тронута; скор/stрік/yaw-физика, дрифт, score — нет.
+• reset(): добавлен сброс roll=pitch=0 (ИСКЛЮЧИТЕЛЬНО визуальные переменные; логика спавна/физики
+  reset не изменена) — после R/старта кузов сразу ровный, без остаточного крена.
+• updateCamera(): для машин target camRoll=roll*0.3 со сглаживанием dt*6.5 (чуть агрессивнее кузова —
+  мягко «догоняет», не раскачивает); для байка оставлено bikeLean*.5; для foot — 0. Кламп камеры в
+  bounds (TOWN / saved-gen) и fov-отзыв от скорости СОХРАНЕНЫ.
+• Дебаг-хук: window.__sus={roll,pitch,camRoll,yaw,mode} обновляется в emit() (только для CDP,
+  React-HUD не затронут).
+• Проверка сборки: npx tsc --noEmit ЧИСТ; npm run build OK; npx electron-builder --mac --arm64 OK.
+• CDP tools/cdp_f_suspension.mjs (packaged .app, bringToFront+IdleOverride+focus, KeyW-гонка):
+  coast: прямой roll≈0 (avg 0.000), speed range ~233 km/h (не упала); поворот A → roll −0.09..−0.13,
+  D → +0.05..+0.13 (внешняя сторона, противоположные знаки); торможение SPACE → pitch −0.059 (нос вниз);
+  камера camRoll плавно до ~0.039 (≈roll*0.3), возврат к ~0 без осцилляций; R сброс (speed→0),
+  E exit/enter, M open/close, Esc pause — работают; Wurzburg: едет (345 km/h), roll/pitch в манёврах;
+  консоль NONE. Итог основного теста: 0 FAILURES.
+• Регрессия генеративных/статичных миров на свежих .app:
+  - tools/cdp_g4_gen_gameplay.mjs — 0 FAIL: infinite (seed 4242) спавн/езда/рельеф/реплей, saved CITY
+    спавн/езда/рельеф, реестр, coast-регрессия после ген — всё зелёное.
+  - tools/cdp_f_foot.mjs (эквивалент cdp_g4_foot, который в tools/ был диагностическим без ассертов):
+    gen-мир E exit → foot, ходьба (moved), E re-enter → car, R → спавн ген, roll≈0 после reset,
+    консоль NONE — 0 FAILURES.
+Проверить следующему: глобальный прогон D (трасса с обгоном) если в планах — race.ts HUD/API не менялись
+    (только __sus добавлен); камера/физика ген-миров подтверждены; лимиты кена (0.13 рад) в пределах
+    «не болтает» (по CDP-семплингу camRoll-шаги <0.04/250мс). Хвосты: (1) pitch при разгоне программно
+    не проверялся отдельно (в логах PART1 виден pitch≈0.011 при разгоне — носовой подъём работает);
+    (2) визуальный вкус (силуэт крена) — оценка требует foreground-окна; (3) на байке крен по-прежнему
+    только bikeLean (как и было — вне скоупа F).
+Коммиты: backup-f-1 (bc88f06) → feature-f-suspension.
 
