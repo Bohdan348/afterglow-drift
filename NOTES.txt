@@ -1425,3 +1425,34 @@ Both GLB self-contained (textures embedded).
   Gates: tsc/build/electron-builder OK. Диагностический код (__rwyNo*/__cam/__raceSky/__bloom/red dash)
     из racetrack/race/visuals удалён полностью.
   Открытый хвост: консольный харнесс tools/cdp_raceway.mjs (фазы C/D/E) — вернуться к нему для DONE.
+
+## Задача Sport — замкнутый дрифтовый трек-кольцо (генерация, режим SPORT)   статус: DONE
+  Реализация (app/gen-ring.ts новый + интеграция app/race.ts, app/page.tsx, app/globals.css):
+  - 3-й режим генератора 'sport': кнопка «🏁 SPORT / DRIFT CIRCUIT», тег SPORT (map-tag.sport),
+    id 'sprt-<seed>', мир НЕ сохраняется (как infinite).
+  - createRing({scene,seed}): замкнутая петля из 942 сэмплов (шаг 2м, N шагов), L=1884м (seed 777),
+    дорога 15м + обочина + разметка, асфальт/трава/бордюры/деревья; collide()/height()/reset()/destroy();
+    геометрия posAt/yawAt/height/spawnPose и счётчики пробега — в window.__ring (терминал/тесты).
+  - СТАРТ: сэмпл-цикл повёрнут так, что s=0 лежит в середине окна из 40 сэмплов (80м) c минимальной
+    кривизной → прямой разгон; замыкание кольца Δyaw=0.002, posAt(0)↔posAt(L-3)=3.4м.
+  - race.ts: selectGenWorld w.mode==='sport' → ring в genRoot, genSpawn=ring.spawnPose();
+    groundCollision/groundY/__mm идут через ring; teardownGen() → ring.destroy() (ring=null).
+  Верификация (tools/cdp_sport.mjs, фазы A–E; упакованный .app; запуск detached+nohup):
+    A ring активен n=942 L=1884; спавн у старта; closure d=3.4 Δyaw=0.002; phys==render 5/5.
+    B острые повороты есть: minR=16м (дрифт возможен).
+    C автопилот едет полный круг 1884м за ~63с; onRoad 99-100%; avg≈108 км/ч; max≤170 км/ч.
+    D дрифт-счёт: +3600..+5500 баллов за 45с; spPeak 150-190 км/ч.
+    E teardown чист (ring удалён из сцены); регрессии coast/raceway/svitlodarsk/infinite OK;
+      UI через РЕАЛЬНЫЙ флоу (клик PLAY → пауза-оверлей → CHOOSE ANOTHER MAP → maps → генератор → SPORT)
+      OK; console errors NONE. Итог: 25 OK / 0 FAIL.
+  Диагностика/решения (перепроверять при правках):
+    - __hud.speed — ЭТО км/ч (x3.6): все пороги автопилота в км/ч.
+    - hud.yaw/carPose.rotation.y НЕ равен курсу движения: смещён ~π относительно геометрии дороги и
+      на кольце не успевает отслеживать поворот. Автопилот строит курс по вектору движения машины
+      (дельта carX/carZ между тиками) и цели lookahead posAt(carS+28), а НЕ через сравнение yaw.
+    - window.__ring.s на спавне «читает» через шов (1883.4 при реальном s≈1, шов d=3.4м).
+      carst() вычисляет s кара перебором ближайшего сэмпла posAt из carX/carZ — иммунно к шву.
+    - pause-overlay рендерится при React started==true; харнесс раньше ездил через window.__race
+      напрямую (после свежего запуска started==false → оверлей не появлялся). UI-фаза теперь
+      проходит через реальный клик PLAY (.menu-content .menu-btn).
+  Gates: tsc --noEmit OK; npm run build OK; electron-builder --mac --arm64 OK.
