@@ -1380,7 +1380,14 @@ Both GLB self-contained (textures embedded).
     --disable-renderer-backgrounding --disable-background-timer-throttling
     (скрытое/перекрытое окно macOS иначе гасит rAF → физика на 0).
 
-## Задача R — 5-lane beateless raceway + трафик + бонус обгона в дрифте   статус: IN PROGRESS
+## Задача R — 5-lane beateless raceway + трафик + бонус обгона в дрифте   статус: DONE
+  ОТКРЫТЫЙ ХВОСТ ЗАКРЫТ: консольный харнесс tools/cdp_raceway.mjs (фазы A–F) → 0 FAIL, консоль NONE:
+    A спавн/phys==render OK; B трафик (8-14, lanes/speed/moving) OK; C control slow-clean без дрифта → 0
+    обгонов (gyт дрифт-гейт) OK; D дрифт-обгон: cross +12, overtakes +12, score 2394, $+331 OK;
+    E бесконечный стриминг: s=2591м, chunkMax=5, culling lateMin=1, no holes OK; F регрессия coast/Würzburg OK.
+  Нюансы CDP: rAF игры зависит от frontmost-окна (osascript activate + hidden-patch + wake на stall);
+    авто-вождение надёжнее в detached-запуске (app остаётся frontmost). tools/cdp_raceway.mjs НЕ коммитится.
+  Gates: tsc exit 0, npm run build OK, electron-builder OK (свежий .app), CDP 0 FAIL, регрессия зелёная.
 Автор: Агент-R
 Файлы: app/racetrack.ts (новый) + app/race.ts + app/page.tsx + NOTES. НЕ трогать town*/gen-*/npc.ts.
 Коммит: backup-raceway → feature-raceway (racetrack.ts, race.ts, page.tsx, NOTES; tools/ не коммитить).
