@@ -1456,3 +1456,15 @@ Both GLB self-contained (textures embedded).
       напрямую (после свежего запуска started==false → оверлей не появлялся). UI-фаза теперь
       проходит через реальный клик PLAY (.menu-content .menu-btn).
   Gates: tsc --noEmit OK; npm run build OK; electron-builder --mac --arm64 OK.
+
+## Phase C — mobile V2: touch-управление + мобильная стабильность  — DONE
+(commits: feature-v2-mobile)
+Верификация tools/cdp_v2.mjs (самодостаточный CDP-харнесс, self-healing relaunch при throttling):
+  Mobile suite: 30 OK / 0 FAIL (чистый прогон дважды), desktop suite (CDP_DESKTOP=1): 5 OK / 0 FAIL, console NONE.
+  A mobile emu: low render path (canvas 844x390, dsf2), gamepad shell AUTO.
+  B settings touch AUTO/ON/OFF реальный UI: AUTO default, OFF прячет, ON показывает, в меню — только «shell».
+  C touch drive: GAS 0→159 km/h, BRAKE 159→25, HANDBRAKE 18→1.9, джойстик L/R/release (translate -44/44/-50%), fps 360+ LOW.
+  D svitlodarsk через РЕАЛЬНЫЙ UI (pause → change map → CHOOSE MAP → карточка → PLAY): ped=22, gas 307 km/h, engine alive. Нет краша/фриза на мобильном.
+  E garage 12 карточек / 5 buy.
+  F desktop regression: fine pointer, нет gamepad AUTO, full-res canvas 2160x1345, keyboard drive 183 km/h, ON override.
+Gates: tsc --noEmit OK; npm run build OK; electron-builder --mac --arm64 OK.
