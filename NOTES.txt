@@ -1780,3 +1780,32 @@ globals.css: стили `.loading-overlay{position:fixed;inset:0;z-index:40}` + 
 Коммиты: feature-perf-loading (race.ts/npc.ts/page.tsx/globals.css),
   phys-harness stabilization (tools/cdp_phys.mjs — ignored by .gitignore).
 Следующее: III2 (вход в дома/интерьеры, town.ts+race.ts), финальный прогон.
+
+== III2a — ВХОД В ДОМА: ДВЕРИ + ИНТЕРЬЕРЫ DONE 09-09 (оркестратор №3) ==
+app/interiors.ts: planInteriors(data,height)+createInteriorRoom(scene). Решение юзера — не все
+  дома: под-фаза III2a (концепт+заметная часть), III2b массово. Критерии двери: kind
+  retail/apartments/residential, h>=2.2, площадь>=36; дверь = грань здания ближе всего к
+  дороге любого класса (offset тротуара roadW/2+1.2 на внешнюю сторону грани через
+  cross(up,edge)); лимит 8 дверей. Под-локальная система: u вдоль стены, n наружу
+  (группа rotated y=atan2(nx,nz)); комната глубиной D=4.6, коллизия dn[-4.05,0.18], стены
+  du+-(3.6|len/2), y[0,2.2], groundY/dn коллизия оверрайдятся комнатой; вручную bounds.
+race.ts: interiorDoors=planInteriors в selectMap (town.height)/selectGenWorld (gt.height);
+  enterInterior(d): скрыть внешний мир (coast/parking/raceway/towns/genRoot/cars/moto),
+  npc.despawn, положение игрока у in-точки (ground d.floor), interiorWasGen запоминает
+  видимость genRoot; leaveInterior(): вернуть мир, npc.respawn/spawnWild у выхода,
+  позиция out-точки (исправлен порядок x,y,z в position.set!); interact() — E вход/выход
+  (порог дверного триггера dist^2<7.8); hint(): 'E - Step inside'/'E - Step out'; pause()
+  не выходит из интерьера и не респавнит NPC; reset()/menu() guard leaveInterior; камера в
+  интерьере — кламп к комнате + дистанция 2.6/y 2.2; HUD interior:boolean; debug
+  __doors()/__foot(x,z,yaw).
+page.tsx: hud default interior:false; мини-карта города и full-map скрыты при hud.interior;
+  подсказка foot меняется.
+Гейт: tsc --noEmit 0; npm run build OK; npx electron-builder --mac --arm64 OK.
+  CDP (packaged .app): tools/cdp_homes.mjs 0 FAIL console NONE — PLAY svitlodarsk → 8 дверей,
+  __foot→E вход (interior, dist in 0.00, no NaN, minimap скрыта, ходьба 2.17 «внутри») → E
+  выход (dist out 0.00, mode foot, мир обратно) → reset→menu. Регресс Волны III:
+  driftcity/raider/phys/tutorial 0 FAIL NONE. (Баг в харнессе: localStorage ключ
+  'afterglow.map', а не 'map'; waited `.town-map`.)
+Коммиты: backup-homes (app/interiors.ts) → feature-home-interiors (race.ts/page.tsx).
+Следующее: III2b (массовые двери/интерьеры — больше классов домов, мебель) или финальный
+  прогон Волны III + итоговый отчёт (graphify STALE).
