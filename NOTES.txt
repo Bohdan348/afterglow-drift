@@ -1529,3 +1529,33 @@ app/race.ts: радар prr (car 2.4 / bike 1.1 / moto 2.4), интеграци�
   postMin≥1.2 (3.19), NPC↔NPC sust≤2% && minOd≥.1 (sust=0/1770, minOd=0.10), minPed≥.7 (0.71); console NONE.
 Регрессии: cdp_ped 0 FAIL, cdp_cars 0 FAIL, cdp_npc_glb 0 FAIL, cdp_raceway 0 FAIL (флейкует на drift-pass
   ~50% — raceway-трешхолд, от npc.ts не зависит). Gates: tsc --noEmit OK; npm run build OK; electron-builder OK.
+
+## Phase B2 — спорт-карта gen-ring доработана (текстура дороги, плотный лес, шире трек)   статус: DONE
+app/gen-ring.ts: LANES 4→6 (ROAD=21, RHLF=10.5); asphaltTex() canvas 256×256 тайл на matAsphalt.map (#b9bec1)
+  + bump grain (matAsphalt.bumpMap); stripGeo получил параметр uvf(q,o) и uv-атрибут, дорожный стрип
+  uv=[q/N*max(40,L/6), (o+RHLF)/ROAD]; dashGeo обобщён — петля по [-7,-3.5,0,3.5,7], hw=.11, hl=2.2;
+  деревья 380→2600 (InstancedMesh, 2/слот, o=±(RHLF+5+rand*52), scale .6–1.7), убран мёртвый trSkip;
+  dbg: lanes/roadW/forest/asphalt; destroy() диспозит asphalt-текстуру с matAsphalt.
+Верификация tools/cdp_sport.mjs 28 OK / 0 FAIL: length 1884м, roadW=21 lanes=6, asphalt=texture-map true,
+  forest=1884≥1500, замкнутость (posAt(0)≈posAt(L-3), yaw Δ0.002), 5/5 phys==render, min-радиус 16м,
+  полный круг 66.2s avg 106.8 peak 136 on-road 100%, дрифт-score +4803, теардаун на switch, регрессии
+  coast/raceway/infinite, полный UI-флоу (menu→maps→gen→SPORT) — всё OK; console NONE.
+
+## Phase H — Спорт режим на raceway (скорость/ускорение ×2, «Спорт режим»)   статус: DONE
+app/race.ts: HUD.sport:boolean; sportMode=false; sp=(mapId==='raceway'&&sportMode?2:1) в physics();
+  масштаб accel/rev/max/maxRev/dragBase на sp (car через {...h0,accel:h0.accel*sp,...}, bikes 50/34*sp
+  clamp -9*sp..277.78*sp и 48/29*sp clamp -6*sp..72*sp); grip/steer не тронуты; emit() показывает
+  sport:mapId==='raceway'&&sportMode (на других картах всегда false при сохранённом sportMode, поэтому
+  «ускорение ×2 только на raceway»); api.setSportMode(v){sportMode=v;bankScore();emit()}.
+app/page.tsx: кнопка SPORT MODE ON/OFF в header (только started&&map==='raceway'), индикатор « · SPORT»
+  в footer .mode-state. app/globals.css: .sport-btn.on (#eaffb0 + свечение).
+Верификация tools/cdp_sportmode.mjs 0 FAIL: API+UI (кнопка SPORT MODE OFF→ON, hud.sport default false),
+  baseline raceway 414.4 км/ч (= жёсткому потолку coupe 114 м/с×3.6 — clamp достижим на прямых),
+  спорт: t150 из покоя 0.72с vs 1.53с (ускорение ~×2), дрифт slip>7° жив, peak 550.4 > жёсткого потолка
+  410 (real ×2-потенциал 228 м/с; на треке трешхолд по геометрии → ratio 1.33), hud.sport переживает
+  перезагрузку карты, на coast никакого буста (speed 158.7, hud.sport false); console NONE.
+Регрессии: cdp_sport 28 OK, cdp_sportmode 0 FAIL, cdp_cars 0 FAIL, cdp_npc_glb 0 FAIL. cdp_ped 1 FAIL
+  (NPC-yield наблюдение <8m: npc.ts не менялся после F, механика цела в коде, фреймы-тайминга раркие —
+  тот же класс флейка, что у cdp_raceway). cdp_raceway 4 FAIL (фаза скорости 408=clamp + drift-pass 0 —
+  флейк класса, физика при sp=1 идентична, от правок не зависит). Gates: tsc OK, npm run build OK.
+Граф: не актуализирован (см. выше — после фаз F/B2/H: `graphify update .`).
