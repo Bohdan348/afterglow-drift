@@ -1559,3 +1559,67 @@ app/page.tsx: кнопка SPORT MODE ON/OFF в header (только started&&ma
   тот же класс флейка, что у cdp_raceway). cdp_raceway 4 FAIL (фаза скорости 408=clamp + drift-pass 0 —
   флейк класса, физика при sp=1 идентична, от правок не зависит). Gates: tsc OK, npm run build OK.
 Граф: не актуализирован (см. выше — после фаз F/B2/H: `graphify update .`).
+=====================================================================
+
+## Волна II — МИР И ГЕНЕРАЦИЯ (оркестратор №2)   статус: DONE (CDP 0 FAIL, console NONE)
+База: feature-raceway @ 9a67273 (держит исходное состояние файлов зоны — backup-коммит не требовался).
+Файлы зоны: app/racetrack.ts, app/gen-ring.ts, app/gen-loader.ts, app/gen-town.ts, app/town.ts,
+    app/town-details.ts. Параллельно (оркестратор №1, Волна I): car-glb.ts/car-multi-glb.ts/
+    globals.css/page.tsx/race.ts/wallet-store.ts/.gitignore — НЕ трогал, коммитится отдельно.
+—— II1 (DONE) рацвей: видимые барьеры app/racetrack.ts ——
+• matBarrier #cc2222 (vertexColors, DoubleSide, dispose в destroy). Вертикальные стены обеих сторон
+  на o=±LIMIT(9.25), высота 1.15, база на kerb-высоте (HOf+o*BankOf+.07), красно-белая шахматка по
+  ((i>>2)&1), per-chunk геометрия (dispose при выгрузке чанка). dbg.barrierCount=chunks.size*2.
+  CDP: barrierCount=8 (chunks [0,1,2,3]), езда 406.7 км/ч.
+—— II2 (DONE) gen-ring: текстура земли + ограждение + хитбоксы декора ——
+• grassTex() canvas 256×256 (детерминизм от opts.seed, RepeatWrapping repeat(40,40)) на farGround
+  (был однотонный #52644a). Ограждение — ВЕРТИКАЛЬНАЯ замкнутая стена wallGeo(barrierO):
+  barrierO=LIMIT-0.15, база HOf+o*BankOf-0.97, высота 1.3, vertexColors, индекс %N (кольцо без
+  разрыва). ВАЖНО: первая версия субагента делала ГОРИЗОНТАЛЬНУЮ парящую плиту (stripGeo с
+  константной y) — исправлено оркестратором на вертикальную стену.
+• Хитбоксы декора («камни без хитбоксов» → есть): propGrid (CELL=22) + в collide() grid-поиск 3×3
+  + push-apart + damping 1.2; treeColliders r=1.8*sc, tribColliders r=13. dbg: barrierSegments,
+  treeColliders, tribColliders, colliderHits (сброс в reset). CDP: barriers=1052, trees=2104,
+  tribs=6, colliderHits=0 на старте, езда 339.9 км/ч s=443.
+  Нюанс: деревья на |o|≥RHLF+5=15.5 недостижимы за барьером LIMIT=11 → colliderHits в геймплее 0
+  (оборонительный слой; ожидаемо).
+—— II3 (DONE) генератор v2: лес/дороги/подъезды/спавн ——
+• app/gen-town.ts: forestN=max(4,round(nf*14)), радиус sz*.32 + rand*sz*.22 (r: была sz*.25+.15);
+  residential-линии на четверть-шаге (.25/.75) по обеим осям; service-подъезды ~45% домов
+  (nearChunkRoad + midpoint edPt→дорога, width 4, отсев <8м/>120м, point-in-poly isBuildingAt);
+  спавн: 5 кандидатов на дорогах, выбор по max hash(seed) — не всегда один и тот же дом.
+• app/gen-loader.ts: ГАРАНТИРОВАННЫЙ лес 1-3 зоны/чанк (rand(seed+cx*137+cz*251,42) — от сида и
+  координат чанка, стыки детерминированы); half-step дороги x0+(k+.5)*SPACING (сетка 100м,
+  бесшовно через границы чанков); cityBlocks(cx,cz,streetRects) — onRoad-исключение ±8м от дороги
+  (строения не встают на дороги); driveways; seed-зависимый спавн: 6 кандидатов, выбор дальнего от
+  центра. CDP (saved 3 сида): спавны РАЗНЫЕ (-818,-783|-559,-727|-658,-559), service=64/63/58,
+  residential=24, forest zones=7, buildings=139/135/123. Infinite (def-сид): __mm(600,150)=0.03,
+  езда 368.3. Determinism/бесшовность 1e-8 не сломаны (CDP).
+  ХВОСТ: в infinite-режиме рантайм держит НОВЫЙ спавн из gen-loader, но race.ts:165 жёстко
+  зашивает genSpawn={x:CHUNK/2,z:SPACING/2,yaw:Math.PI} → отключение возможности видеть смену
+  спавна в runtime. race.ts — файл оркестратора №1, НЕ трогаю; при передаче хода — заменить на
+  чтение genSpawn из payload (gen-loader уже возвращает его в chunk.spawn).
+—— II4 (DONE) дома не висят: app/town.ts ——
+• base = min(высоты ПО ВСЕМ ВЕРШИНАМ полигона + центроид) − 0.1 (наследует T/T2, driveHeight
+  через town.height) — стены уходят ПОД рельеф, а не нависают. CDP II4/II5 svitlodarsk: 370 км/ч.
+—— II5 (DONE) палитра Свитлодарска: app/town.ts + app/town-details.ts ——
+• town.ts: facade-текстура ЕДИНАЯ #c2beb0 (стёкла #34535d) для всех оттенков (одна canvas на 4
+  материала — пересобрана в один материал), roofMat #606c70 не менялся.
+• town-details.ts: вывески магазинов ЕДИНЫЙ фон #284d42 (был циклический 3-цветный).
+• Согласование с CityProps: палитра пропсов (заборы/билборды) не менялась.
+—— Верификация (гатес) ——
+• npx tsc --noEmit exit 0; npm run build OK; npx electron-builder --mac --arm64 OK (packaged .app).
+• CDP (tools/cdp_wave2.mjs + cdp_wave2b.mjs, packaged .app, порт 9222, offscreen окно
+  visible:false focus:true — в этой среде физика жива и bringToFront не требуется):
+  Physics A 209.8 | raceway barrierCount=8 406.7 | ring 1052/2104/6 339.9 | II3 saved 3 сида +
+  svitlodarsk 370 | II3b infinite 368.3 | итог 0 FAIL, console NONE.
+• Замечание среды: транзиентный крэш GPU/CDP (exit_code=15, «Network service crashed or was
+  terminated, restarting service») — флак среды; повторный прогон прошёл чисто.
+Хвосты: (1) infinite-спавн runtime — см. II3 выше (race.ts:165, файл оркестратора №1);
+  (2) graphify НЕ установлен в среде (`graphify` not found / npx graphify: could not determine
+  executable to run) → `graphify update .` по правилам AGENTS.md не выполнен; граф лежит в
+  graphify-out/ от 2026-09-09, STALE по этим правкам;
+  (3) oxlint: 101 baseline-ошибка по dense-стилю всего репо (90 файлов) — не гейт (tsc/build/CDP
+  — гейт).
+Коммиты: feature-wave2-w1p (6 файлов зоны) + NOTES.txt отдельным коммитом. tools/* (cdp_wave2*,
+  dbg_*) НЕ коммитятся. AGENTS.md/.opencode/ — не мои, не трогал.
