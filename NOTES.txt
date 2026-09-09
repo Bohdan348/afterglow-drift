@@ -1571,17 +1571,30 @@ app/page.tsx: кнопка SPORT MODE ON/OFF в header (только started&&ma
   Незакоммичено: app/wallet-store.ts (гараж 33 VehicleId), .opencode/, AGENTS.md, .gitignore (graphify).
   tsc exit 0; граф актуален (1079 узла / 1950 рёбер / 69 сообществ).
 
-Волна I — БАГИ И UX (сначала; внутри: I1 и I2+I5 параллельно, I2→I5 последовательно в race.ts):
-  I1 (п.1) машины едут задом: app/car-multi-glb.ts:25 и app/car-glb.ts:51-53 — bake makeRotationY(π);
-      убрать/инвертировать, проверка 11 машин (coupe…mustang). Байки НЕ трогать (ориентированы верно).
-  I2 (п.2,4,7) посадка/размер водителя: app/race.ts:168 — car scale .76 (голова торчит: actors.ts:10 y=1.78,
-      «утапливается» на байке scale 1.0), водитель справа x=.38 → слева (-.38); наклон у байка уже есть
-      (rotation driven.rotation.z) — подправить позицию под lean, не «сползать» на резких поворотах.
+ОБНОВЛЕНО 09-09 (проверка прогресса планировщиком): Волна I DONE (I1 feature-fix-rotation, I3
+  feature-menu-exit, I4 feature-open-paid, I2+I5 feature-seat-camera; НЕ сделана I6 — см. ниже),
+  Волна II DONE (feature-wave2-w1p: II1 racetrack барьеры, II2 gen-ring текстура/ограждения/хитбоксы,
+  II3 генератор v2 лес/дороги/подъезды/спавн, II4 дом-базы под рельеф, II5 палитра Свитлодарска).
+  Хвост Волны II: «infinite-спавн runtime зашит в race.ts:165 (файл оркестратора №1)», граф после
+  фаз не пересобран (graphify update) — сделать оркестратору №3. tsc exit 0 — подтверждено.
+  Остаётся выполнить: I6 (Обучение) → Волна III (III1–III5) → Деплой (Фаза G).
+
+Волна I — БАГИ И UX (сначала; внутри: I1 и I3+I4+I6 параллельно по файлам, I2→I5 последовательно в race.ts):
+  I1 (п.1 + 09-09 «порш и машины с интернета едут задом») новые машины едут задом: app/car-multi-glb.ts:25
+      и app/car-glb.ts:51-53 — bake makeRotationY(π); убрать/инвертировать, проверка 11 машин
+      (coupe…mustang; особенно porshe/m8_gte/m4_gte/mustang — скачанные модели). Байки НЕ трогать.
+  I2 (п.2,4,7 + 09-09 «мото быстрее + водитель не синхронизирован»): app/race.ts:168 — car scale .76
+      (голова торчит: actors.ts:10 y=1.78), водитель справа x=.38 → слева (-.38); наклон у байка уже есть
+      (rotation driven.rotation.z) — персонаж должен ЖЁСТКО поворачивать ВМЕСТЕ с мото (сейчас остаётся
+      на месте/улетает), в авто следовать за roll и yaw; мото быстрее (HANDLING bike-типов).
   I3 (п.6) кнопка меню: app/page.tsx:139 «CHOOSE ANOTHER MAP ↗» → «EXIT TO MENU», хедер :137 «MAPS» → «EXIT».
   I4 (п.10) открыть платные машины: app/wallet-store.ts:7 owned=false (porsche/m8/m4/mustang/bike) → true
       (тест-режим); + закоммитить уже расширенный wallet-store.ts.
   I5 (п.11) поворот камеры: app/race.ts:135/195-197 — drag-орбита только в foot; добавить в car/bike
       (мышь Q/E), steering НЕ привязывать к камере (руль от yaw машины), R/shortcut — сброс угла.
+I6 (09-09) раздел «ОБУЧЕНИЕ» в настройках: app/page.tsx + globals.css — оверлей со справочником
+      управления (W/A/S/D/SPACE/R/E/M/Esc/G + поворот камеры I5 + touch) и фишек игры (дрифт+$,
+      гараж/магазин, Спорт-режим, типы карт, генератор, пресеты), контент по реальному коду.
 Волна II — МИР И ГЕНЕРАЦИЯ:
   II1 (п.12) видимые барьеры raceway: app/racetrack.ts (kerbs есть, стен нет; LIMIT-коллизия невидима).
   II2 (п.17) спорт-карта: app/gen-ring.ts — ground однотонный (#52644a стр.56), ограждений нет; деревья/
@@ -1698,3 +1711,14 @@ DONE-criteria каждой фазы: код без комментариев → 
   — гейт).
 Коммиты: feature-wave2-w1p (6 файлов зоны) + NOTES.txt отдельным коммитом. tools/* (cdp_wave2*,
   dbg_*) НЕ коммитятся. AGENTS.md/.opencode/ — не мои, не трогал.
+
+== I6 — ОБУЧЕНИЕ DONE 09-09 (оркестратор №3) ==
+  app/page.tsx + app/globals.css (коммит feature-tutorial): в SETTINGS добавлена строка
+  Tutorial → оверлей «TUTORIAL · HOW TO PLAY» (screen=tutor): CONTROLS — W/A/S/D,
+  SPACE (ручник/тормоз), SHIFT (бег), E (посадка), R (рестарт), G (стиль STANDARD↔DRIFT),
+  M (карта), ESC, Q/C (камера), DRAG (орбита мыши), TOUCH (зоны); TRICKS — дрифт/комбо,
+  $ кеш, GARAGE·SHOP, SPORT (raceway), MAPS, GENERATOR, NPC-дрифт-ориентир.
+  CLOSE → обратно в SETTINGS. Гейт: tsc 0, build OK, electron-builder --mac --arm64 OK,
+  tools/cdp_tutorial.mjs 0 FAIL, console NONE. graphify update . OK (топология без изменений).
+Следующее: Волна III — III1 (driftgrid-city + пресет DRIFT), III3 (wild-bot npc.ts + спавн),
+  III2 (дома/интерьеры), III4 (физика — по согласованию A/B/C), III5 (perf + LOADING MAP…).
