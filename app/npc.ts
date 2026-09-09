@@ -43,12 +43,12 @@ interface Veh{type:NpcType;a:number;b:number;ei:number;t:number;x:number;z:numbe
 const KIND_MAX:Record<string,number>={motorway:20,primary:20,secondary:18,trunk:18,tertiary:16,unclassified:15,residential:13,living_street:10,service:9};
 export interface NpcHandle{respawn(cx:number,cz:number):void;despawn():void;destroy():void;update(dt:number,px:number,pz:number,pvx?:number,pvz?:number,pr?:number):{px:number;pz:number;vx:number;vz:number};debug():{counts:{ped:number;moto:number;car:number};glb:{car:number;moto:number};actors:{t:NpcType;x:number;z:number;yaw:number;s:number;dr:number;yl:number;st:string;gx:number;gz:number;life?:number}[];graph:{ve:number;pe:number};wild:{t:string;x:number;z:number;y:number;yaw:number;s:number;dr:number;gx:number;gz:number;distToPlayer:number}|null};spawnWild(x:number,z:number,isBike:boolean):void;despawnWild():void}
 const GRAPHS=new Map<string,{vg:G;pg:G}>();
-export function createNpc(opts:{id:string;roads:{p:Point[];kind:string;width:number}[];areas:{p:Point[];kind:string}[];bounds:number[];height:(x:number,z:number)=>number;scene:T.Scene}):NpcHandle{
+export function createNpc(opts:{id:string;roads:{p:Point[];kind:string;width:number}[];areas:{p:Point[];kind:string}[];bounds:number[];height:(x:number,z:number)=>number;scene:T.Scene;low?:boolean}):NpcHandle{
  preloadNpcModels();
  const scene=opts.scene;let vg:G,pg:G;const cache=GRAPHS.get(opts.id);
  if(cache){vg=cache.vg;pg=cache.pg}else{vg=buildV(opts.roads.map(r=>r.p),opts.roads.map(r=>r.kind),opts.roads.map(r=>r.width));pg=buildP(opts.roads.map(r=>r.p),opts.roads.map(r=>r.kind),opts.roads.map(r=>r.width),opts.areas.map(a=>({p:a.p,kind:a.kind})));GRAPHS.set(opts.id,{vg,pg})}
- const bounds=opts.bounds;const height=opts.height;const mobile=innerWidth<640;
- const PED_MAX=mobile?10:22,MOTO_MAX=mobile?1:3,CAR_MAX=mobile?3:6;
+const bounds=opts.bounds;const height=opts.height;const low=opts.low===true;const mobile=innerWidth<640;
+  const PED_MAX=low?6:mobile?10:22,MOTO_MAX=low?1:mobile?1:3,CAR_MAX=low?2:mobile?3:6;
  const dummy=new T.Object3D();
  const bodyGeom=new T.CapsuleGeometry(.19,.45,4,8);const headGeom=new T.SphereGeometry(.15,10,8);
  const pBody=new T.InstancedMesh(bodyGeom,new T.MeshStandardMaterial({color:'#ffffff',roughness:.8}),PED_MAX);pBody.frustumCulled=false;
