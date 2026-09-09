@@ -1559,6 +1559,81 @@ app/page.tsx: кнопка SPORT MODE ON/OFF в header (только started&&ma
   тот же класс флейка, что у cdp_raceway). cdp_raceway 4 FAIL (фаза скорости 408=clamp + drift-pass 0 —
   флейк класса, физика при sp=1 идентична, от правок не зависит). Gates: tsc OK, npm run build OK.
 Граф: не актуализирован (см. выше — после фаз F/B2/H: `graphify update .`).
+
+=====================================================================
+
+## ПЛАНИРОВЩИК — «ВОЛНЫ ФИДБЕКА» (18 пунктов от игрока 09-09)   статус: ПЛАН ЗАПИСАН, ЖДЁМ ЗАПУСКА
+Источник: ORCHESTRATOR_PLAN.md → разделы «Волна I / II / III» (вставить целиком в чат оркестратора №2).
+Решение юзера: (1) город-дрифт — «и готовую карту, и пресет генератора»; (2) вход в дома — «двери +
+  интерьер, пока не все дома» (заметная часть, остальные закрыты); (3) приоритет — «баги/UX сначала».
+Состояние на старт: A/B/C/E/F/B2/H DONE (коммиты feature-npc-glb-models 93488ba, feature-collisions
+  0335c45, feature-sport-v2 4fa5639, feature-raceway-sportmode 9a67273 поверх backup-collide 7cb4e1c).
+  Незакоммичено: app/wallet-store.ts (гараж 33 VehicleId), .opencode/, AGENTS.md, .gitignore (graphify).
+  tsc exit 0; граф актуален (1079 узла / 1950 рёбер / 69 сообществ).
+
+Волна I — БАГИ И UX (сначала; внутри: I1 и I2+I5 параллельно, I2→I5 последовательно в race.ts):
+  I1 (п.1) машины едут задом: app/car-multi-glb.ts:25 и app/car-glb.ts:51-53 — bake makeRotationY(π);
+      убрать/инвертировать, проверка 11 машин (coupe…mustang). Байки НЕ трогать (ориентированы верно).
+  I2 (п.2,4,7) посадка/размер водителя: app/race.ts:168 — car scale .76 (голова торчит: actors.ts:10 y=1.78,
+      «утапливается» на байке scale 1.0), водитель справа x=.38 → слева (-.38); наклон у байка уже есть
+      (rotation driven.rotation.z) — подправить позицию под lean, не «сползать» на резких поворотах.
+  I3 (п.6) кнопка меню: app/page.tsx:139 «CHOOSE ANOTHER MAP ↗» → «EXIT TO MENU», хедер :137 «MAPS» → «EXIT».
+  I4 (п.10) открыть платные машины: app/wallet-store.ts:7 owned=false (porsche/m8/m4/mustang/bike) → true
+      (тест-режим); + закоммитить уже расширенный wallet-store.ts.
+  I5 (п.11) поворот камеры: app/race.ts:135/195-197 — drag-орбита только в foot; добавить в car/bike
+      (мышь Q/E), steering НЕ привязывать к камере (руль от yaw машины), R/shortcut — сброс угла.
+Волна II — МИР И ГЕНЕРАЦИЯ:
+  II1 (п.12) видимые барьеры raceway: app/racetrack.ts (kerbs есть, стен нет; LIMIT-коллизия невидима).
+  II2 (п.17) спорт-карта: app/gen-ring.ts — ground однотонный (#52644a стр.56), ограждений нет; деревья/
+      трибуны БЕЗ коллизий («камни без хитбоксов»). Текстура земли + ограждения + хитбоксы декора.
+  II3 (п.18) генератор v2: app/gen-loader.ts + gen-town.ts (+ presets page.tsx:48-50) — больше леса в
+      forest; подъезды к домам + больше пересекающихся дорог; рандомный default-сид и спавн не всегда
+      у одного дома; не ломать бесшовность чанков (1e-8) и детерминизм.
+  II4 (п.9) дома висят: gen-loader cityBlocks / svitlodarsk — стены уходят под рельеф (min baseline).
+  II5 (п.13,15) Свитлодарск: заборы у ВСЕХ частных домов (town-details.ts), палитра домов больше
+      оттенков (town.ts:44 сейчас 4).
+Волна III — КРУПНЫЕ (после I–II):
+  III1 (п.3) город-дрифт: готовая 6-я карта (public/maps/driftgrid.json, сгенерить и сохранить) +
+      пресет DRIFT (city высоко, плоский рельеф, застройка ×2).
+  III2 (п.14) вход в дома: двери+упрощённые интерьеры части домов Свитлодарска (самая объёмная,
+      можно под-фазы III2a/III2b).
+  III3 (п.5) бот-рейдер: npc.ts «wild»-режим + спавн при старте, бешено рандомно, не ломать коллизии F.
+  III4 (п.16) физика: ОБЗОР СДЕЛАН (09-09) — топ-1 @react-three/rapier DynamicRayCastVehicleController
+      (миграция большая, отдельным спринтом по решению юзера); дешёвое: Pacejka/brush-трение для
+      текущей модели (slip angle → lateral); jolt-physics — на запас (MotorcycleController для байков).
+      Действие: согласовать с юзером (A быстрые улучшения / B прототип Rapier / C ничего). Без ответа — A.
+  III5 (п.8) оптимизация слабых ПК: к LOW (race.ts:62 touch→pixelRatio 1) добавить CPU/GPU-детект,
+      прелоад карт/моделей с экраном «LOADING MAP…» и прогрессом, LOD крупных мешей (опц.).
+Порядок и коммиты: Волна I → II → III (гейты из плана); per-фаза backup-* → feature-*; tools/ НЕ
+  коммитить; тесты ТОЛЬКО фоновые (свернутое/невидимое окно, CDP Input, clean shutdown).
+DONE-criteria каждой фазы: код без комментариев → tsc → build → electron-builder → CDP KeyW 0 FAIL
+  (фон) → `graphify update .` → backup/feature-коммит → NOTES DONE.
+ДЕПЛОЙ: после всех волн — отдельный агент-деплоер (Фаза G, чат №3, промпт в ORCHESTRATOR_PLAN.md:
+  собрать dist/client, задеплоить на Vercel, проверить GLB 200).
+
+Проверить следующему (оркестратору при старте): git status (что реально незакоммичено), tsc exit 0,
+  `graphify query`/`graphify update` по зонам правок, CDP-инстанс на 9222 убит перед новыми прогонами.
+
+## Волна I — БАГИ И UX (оркестратор №1)   статус: DONE
+Гейты (свежий .app после пересборки, HEAD 71b77ef): tsc exit 0, npm run build OK, electron-builder OK.
+  CDP 0 FAIL console NONE: tools/cdp_i1_rot.mjs (11 машин едут вперёд, dot=1.000, спд 163-198),
+  tools/cdp_i25_seat.mjs (водитель слева lat=-0.380, голова 1.287<1.628, scale .68, байк lift .420 lean),
+  tools/cdp_i5_cam.mjs (Q/C/drag camOff car+bike, движение по своему yaw aF=0.000), tools/cdp_i34_ui.mjs
+  (гараж SELECT у всех платных + без BUY/локов, EXIT/EXIT TO MENU, Porsche разгон 106>, W не движет после выхода).
+  I2 и I5 живут в одном app/race.ts с перемешанными хунками — закоммичено ОДНИМ коммитом feature-seat-camera
+  (отступление от per-фаза-commit, зафиксировано в отчёте). I4: wallet-store.ts расширен (гараж 27 VehicleId,
+  PRICES) + defaults ВСЕ true — открыто; файл совместный (гараж от волны II), закоммичен в feature-open-paid.
+  Итог: коммиты feature-fix-rotation, feature-menu-exit, feature-open-paid, feature-seat-camera.
+База: feature-raceway @ 9a67273; backup-ветки созданы: backup-fixrot, backup-seat, backup-menu,
+    backup-openpaid, backup-cam (все @ 9a67273). tsc exit 0; CDP-инстанс 9222 убит.
+    Незакоммичено (чужое): .gitignore, NOTES.txt (планировщик), app/wallet-store.ts (гараж),
+    .opencode/, AGENTS.md.
+Расписание (владельцы файлов):
+    I1 car-multi-glb.ts/car-glb.ts  → субагент A
+    I3 page.tsx + I4 wallet-store.ts → субагент B
+    I2→I5 race.ts                   → субагент C (последовательно, одним агентом)
+ТЕСТЫ ТОЛЬКО В ФОНЕ; electron-builder и .app/CDP-прогоны — последовательно через оркестратора.
+
 =====================================================================
 
 ## Волна II — МИР И ГЕНЕРАЦИЯ (оркестратор №2)   статус: DONE (CDP 0 FAIL, console NONE)
