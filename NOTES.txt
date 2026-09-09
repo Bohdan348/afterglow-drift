@@ -1746,3 +1746,18 @@ III3 — wild-bot рейдер: app/npc.ts (spawnWild/despawnWild/_dw, wildYaw/w
 Хвосты: graphify НЕ установлен (как в Волне II) → граф STALE; oxlint 101 baseline — не гейт.
 Следующее: III4-A (физика: dt-инвариант руления, демпфер скольжения, HANDLING), затем
   III2 (вход в дома/интерьеры), III5 (флаг LOW в race.ts ~62 + LOADING MAP… в page.tsx).
+
+== III4-A — АРКАДНАЯ ФИЗИКА DONE 09-09 (оркестратор №3) ==
+race.ts: (1) dt-инвариантное руление — steer через экспоненциальное сглаживание
+  steer+=(turn-steer)*(1-exp(-dt*9)) вместо костыля Math.min(1,dt*9);
+  (2) HANDLING перенастроен под аркаду (accel/rev/max/drag НЕ тронуты — скоростные
+  спектры регрессов сохранены): steer ↑ (coupe 1.5→1.68, porsche 1.8→2.05, mustang
+  1.7→1.9), latYaw ↑ (coupe .28→.34, porsche .34→.42, mustang .38→.48) — охотнее
+  вращаются в заносе, driftGrip чуть ↓ (porsche 3.4→3.15) — дольше скользят;
+  экспоненциальное затухание бокового скольжения уже было в модели (lateral*=exp(-grip*dt)).
+Гейт: tsc/build/electron-builder OK. CDP tools/cdp_phys.mjs 0 FAIL console NONE:
+  слалом SPACE+A/D — slip 7.5..51°, steer плавный в ±1, курс удержан (dyaw~1.1),
+  после reset разгон 287, без NaN. Регресс всей Волны III (11 харнессов) 0 FAIL.
+  В cdp_raider: радиус спавна бота ≤300м и маневр-уход при блоке спавна игрока ботом.
+Коммит: feature-physics-arcade (race.ts).
+Следующее: III2 (вход в дома/интерьеры, town.ts+race.ts), III5 (LOW-детект + LOADING MAP…).
