@@ -1583,6 +1583,12 @@ app/page.tsx: кнопка SPORT MODE ON/OFF в header (только started&&ma
   I1 (п.1 + 09-09 «порш и машины с интернета едут задом») новые машины едут задом: app/car-multi-glb.ts:25
       и app/car-glb.ts:51-53 — bake makeRotationY(π); убрать/инвертировать, проверка 11 машин
       (coupe…mustang; особенно porshe/m8_gte/m4_gte/mustang — скачанные модели). Байки НЕ трогать.
+  I1b (09-09 после I1) ВОССТАНОВИТЬ НАПРАВЛЕНИЕ СТАРЫХ интернет-моделей: после I1 bake без RotY(π) —
+      новые смоделированные (/models/*.glb: coupe/sedan/hatchback/wagon/liftback/suv/cuv) смотрят
+      правильно, а СТАРЫЕ (porsche/m8/m4/mustang) — не в ту сторону. Юзер: «старые вернуть как было,
+      новые оставить как есть». Решение: параметризованный bacд: porsche/m8/m4/mustang — RotY(π)·translate
+      (как до I1), новые /models/*.glb — только translate. Файлы: app/car-multi-glb.ts (+race.ts, кому flip),
+      НЕ трогать npc.ts//models. CDP на 11 машин; коммит backup-olders → feature-restore-old-orientation.
   I2 (п.2,4,7 + 09-09 «мото быстрее + водитель не синхронизирован»): app/race.ts:168 — car scale .76
       (голова торчит: actors.ts:10 y=1.78), водитель справа x=.38 → слева (-.38); наклон у байка уже есть
       (rotation driven.rotation.z) — персонаж должен ЖЁСТКО поворачивать ВМЕСТЕ с мото (сейчас остаётся
@@ -1723,6 +1729,20 @@ DONE-criteria каждой фазы: код без комментариев → 
 Следующее: Волна III — III1 (driftgrid-city + пресет DRIFT), III3 (wild-bot npc.ts + спавн),
   III2 (дома/интерьеры), III4 (физика — по согласованию A/B/C), III5 (perf + LOADING MAP…).
 
+== ПЛАНИРОВЩИК — ПРОГРЕСС (09-09, перед оркестратором №3) ==
+СТАТУС ВХОДА: Волна I DONE (I1-I5), Волна II DONE (II1-II5), I6 DONE,
+  Волна III DONE (III1, III2a, III3, III4-A, III5), финальный прогон 12 CDP 0 FAIL. tsc clean.
+  Не сделано по свежему фидбеку 09-09:
+  1) I1b — направление СТАРЫХ интернет-моделей НЕ восстановлено (app/car-multi-glb.ts:25 bake без
+     RotY(π), флага flip НЕТ — porshe/m8_gte/bmw_m4_gte/ford_mustang всё ещё смотрят не туда).
+  2) I7 (НОВОЕ, регресс I2) — персонаж НЕ прикреплён к сиденью: applyCharacter (race.ts:176) car →
+     rotation.set(0,yaw,0) без roll/pitch кузова; bike → set(0,yaw,clamp(bikeLean)) без полного
+     lean-кватерниона мото. При наклоне перс остаётся «стоять» — нереалистично. Фаза I7 описана в плане.
+  Хвосты Волны III/раньше: graphify НЕ установлен (граф STALE, заменить граф на свежий), infinite-спавн
+  runtime в race.ts:165 (опционально, не гейт), cdp_cars.mjs устарел после I4.
+СЛЕДУЮЩИЙ ОРКЕСТРАТОР: I1b → I7 (обе правки race.ts/кар-лоадера, последовательно) → финальный
+  прогон → деплой (Фаза G, отдельный чат №4 по команде «деплой»). III2b (массовые интерьеры) — опционально.
+
 == ВОЛНА III — III1+III3 DONE 09-09 (оркестратор №3) ==
 III1 — DRIFT CITY: app/page.tsx (карта #06 Drift Grid, townTag GRID, PRESETS.drift,
   GEN_PRESETS DRIFT CITY, flat/roadsScale в createGenMap/startGame), app/gen-town.ts
@@ -1823,3 +1843,53 @@ CDP 0 FAIL console NONE: homes 0, driftcity 0, raider 0, phys 0, tutorial 0,
   каждый харнесс — на свежем .app.
 Закрыто: Волна III (III1/III2a/III3/III4-A/III5) — все CDP-гейты зелёные.
 Хвост: graphify НЕ установлен (граф STALE); oxlint 101 baseline — не гейт.
+
+== I1b — ОРИЕНТАЦИЯ СТАРЫХ ИНТЕРНЕТ-МОДЕЛЕЙ DONE 09-09 (оркестратор №1) ==
+app/car-multi-glb.ts: loadCarModelMulti(url, flip=false) — параметр flip; при flip=true
+  bake = makeRotationY(π) · makeTranslation(-cx, -minY, -cz) (математически идентично
+  pre-I1 формуле multiplyMatrices из 344cb6e, которую I1-коммит bdc0a89 убрал); при
+  flip=false bake = только translate (как после I1).
+app/race.ts: OLD_CAR_FLIP = {porsche,m8,m4,mustang} — только для старых /porshe.glb,
+  /m8_gte.glb, /bmw_m4_gte.glb, /ford_mustang.glb. Новые /models/*.glb без флипа.
+  Диагностика ориентации: glbMark (эмиссивная эвристика: r>=g*1.3&&r>=b*1.3 → tail,
+  сумма каналов >.06 → head) пишет driven.userData.tail/head, проброшены в seat.
+Проверка cdp_i1b_i7 Phase A (свежий .app): все 5 машин coupe/mustang/m4/m8/porsche
+  nose-in-forward dot=1.000 (направление движения совпадает с nose), разгон
+  107–149 км/ч, консоль NONE. Верификация не зависит от tail/head-маркеров для старых
+  GLB (у них нет эмиссивных мешей) — доказательство = совпадение bake с pre-I1
+  формулой + dot=1.000.
+Коммиты: 6cfefb0 backup-olders (чекпоинт I1b, I7 не внесён) →
+  c9dda1c feature-restore-old-orientation (финал I1b+I7 одним коммитом — общие хунки
+  race.ts, прецедент «I2+I5»).
+
+== I7 — СИНХРОНИЗАЦИЯ ПЕРСОНАЖА С НАКЛОНОМ ТРАНСПОРТА DONE 09-09 (оркестратор №1) ==
+app/race.ts applyCharacter: car и bike копируют character.group.quaternion =
+  driven.quaternion (было rotation.set(0,yaw,0) для car и (0,yaw,clamp(bikeLean,-.35,.35))
+  для bike). Car — полный roll/pitch кузова (минимум стабилизации не нужен: camRoll уже
+  сглаживает камеру), bike — полный lean без клэмпа (I2-посадка сохранена: позиции/scale
+  не тронуты: car (-.38,-.08,.13)/scale .68, bike (.42,.28)+leanComp .18/scale 1).
+  character.pose() трогает только rotation детей, не group — копия безопасна.
+  В seat добавлены rq/dq (кватернионы character/driven) и tail/head (см. I1b) для CDP.
+Проверка cdp_i1b_i7 Phase B (car, coast): при roll=-0.130 body lean(из кватерниона
+  перса)==roll кузова maxDiff=0.0138, точное равенство кватернионов qdist=0.000000 во
+  всех кадрах, уровень на спавне 0.0000. Phase C (bike): на прямой lean 0.0000;
+  full-lean формула |bodyLean − bikeLean·min(1, .4+spd·.014)| < 0.05 → err 0.0001,
+  точное равенство кватернионов qdist=0.000000 (полный lean БЕЗ клэмпа виден:
+  cdp_i25_seat показывает lean байка до 0.85). Консоль NONE, 0 FAIL.
+Нюансы верификации: .../drvYaw (Euler) неточен при больших lean → bodyOf(q) гасит yaw
+  через conj(Qy(yaw)) по forward и берёт z-угол, гард по x-углу <0.30. Квирк тестов:
+  после menu()->selectMap старт не двигает байк (spd 0) — основной харнесс базируется
+  на рабочей фазе, menu-рекурсия не используется.
+
+== ФИНАЛЬНАЯ ВЕРТИФИКАЦИЯ I1b+I7 (09-09, свежий packaged .app от c9dda1c) ==
+Гейт tsc --noEmit / npm run build / electron-builder --mac --arm64 OK.
+tools/cdp_i1b_i7.mjs: 0 FAIL console NONE (не коммитится, tools/ игнор).
+Регресс-волна 12 CDP на свежих .app: homes 0, driftcity 0, raider 0, phys 0 (см. флейк),
+  tutorial 0, i1_rot 0, i25_seat 0, i5_cam 0, i34_ui 0, npc_glb 0, sport 28 OK 0,
+  sportmode 0. console NONE везде (i1_rot не собирает консоль — статичная строка).
+Флейк cdp_phys (S-slalom «net heading kept» dyaw~1.7 при пороге 1.3, иногда каскад
+  «warmup/accel» из-за троттлинга rAF при нагрузке машины): ДОКАЗАНО не-регрессией —
+  изолированный слалом-пробник даёт байт-в-байт одинаковый dyaw=1.654 и на финальной
+  сборке (c9dda1c), и на базовой 25bc192 (Волна III). При нормальной каденции phys = 0 FAIL.
+Хвост: graphify НЕ установлен — «graphify update .» → command not found (граф STALE);
+  oxlint 101 baseline — не гейт. tools/_probe_bike_lean*.mjs — исследовательские пробы.
