@@ -1455,7 +1455,36 @@ Both GLB self-contained (textures embedded).
     - pause-overlay рендерится при React started==true; харнесс раньше ездил через window.__race
       напрямую (после свежего запуска started==false → оверлей не появлялся). UI-фаза теперь
       проходит через реальный клик PLAY (.menu-content .menu-btn).
-  Gates: tsc --noEmit OK; npm run build OK; electron-builder --mac --arm64 OK.
+Gates: tsc --noEmit OK; npm run build OK; electron-builder --mac --arm64 OK.
+
+## Phase E — NPC-транспорт на GLB-моделях (города + raceway)  — DONE
+(commit: feature-npc-glb-models)
+Файлы: app/npc.ts, app/racetrack.ts, app/bike-multi-glb.ts (импорт npc), public/models/* , docs/.
+    НЕ трогать wallet-store.ts / race.ts (гараж — чужая незакоммиченная работа).
+Задача: убрать «процедурные коробки» NPC-транспорта в городах и на трассе → GLB-модели
+    (7 машин + 15 байков, bike-multi-glb). Материал-контракт: MatBody окрашивается,
+    MatRim/MatTire/MatHead/red_glass — общие. Колеса GLB крутятся rotation.x, процедурные z.
+Реализация:
+  - npc.ts: NPC_CARS/NPC_MOTOS, carCache/motoCache, preloadNpcModels() (desktop все, mobile 3 машины/4 байка),
+    carLoaded/motoLoaded, window.__npcglb, npcCarModel/npcCarColors (экспорты); Veh+/u, glbMats; makeVeh
+    (клонирование позника вызов каталога, tint MatBody, пивоты userData.glb) с fallback spawnMesh;
+    upgrade процедурных→GLB в topup (только при cache.has(v.u) — без churn); dropVeh dispose glbMats;
+    debug.glb {car,moto}.
+  - racetrack.ts: preloadNpcModels при создании; трафик = GLB-группы (makeTrackVeh: GLB-клон или
+    fallback-бокс carGeo+cabGeo+wheelGeo), upgrade раз в 0.5с, dropNpc (remove+dispose glbMats),
+    колёса spin по userData.glb; dbg.glbCars/carCars; window.__raceway; reset/destroy чистят группы.
+Верификация:
+  - tools/cdp_npc_glb.mjs 0 FAIL, console NONE: würzburg carLoaded=7/motoLoaded=15, glb.car=6/moto=3
+    (все NPC), svitlodarsk 6/3, coast __npc null, raceway glbCars=8/carCars=8, fps town 360 / raceway 360.
+  - tools/cdp_ped.mjs 0 FAIL ×2 подряд (drift 288/2227 + yield 18/2227 первым, 699/2590 + 8/2590 вторым;
+    pause→despawn, resume→respawn 22/3/6, menu→0/0/0, coast→__npc null + coupe едет, würzburg re-select→respawn).
+  - gates tsc --noEmit OK; npm run build OK; electron-builder --mac --arm64 OK.
+Хвост/новый CDP-статус: cdp_ped.mjs переписан — добавлены self-healing relaunch + warm-up fps
+  (флаг THROTTLED при окне occluded — rAF мёртв), fpsSample через __fpsV2, полный kick
+  (osactivate + lifecycle active + idle/focus эмуляция + hidden-patch), наблюдение dr/yl на rAF-кадрах
+  в браузере (окно yield 2.8-8м ~0.17с нельзя ловить CDP-поллингом), погоня-«пробка» к ближайшей
+  машине (S при bd<45 → догоняет сзади → yield). warm-up 3fps (первая попытка) — лечится relaunch.
+Следующий шаг (Phase F): физика столкновений игрок↔транспорт (по плану).
 
 ## Phase C — mobile V2: touch-управление + мобильная стабильность  — DONE
 (commits: feature-v2-mobile)
