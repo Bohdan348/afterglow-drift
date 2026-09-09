@@ -1,7 +1,7 @@
 import {generateTown,genElev,worldHeight} from './gen-town'
 import type {TownData} from './town-data'
 type Point=[number,number]
-export type GenOptions={seed:number;forest:number;field:number;city:number;size?:number}
+export type GenOptions={seed:number;forest:number;field:number;city:number;size?:number;flat?:boolean;roadsScale?:number}
 export type GenMapOptions=GenOptions&{name?:string}
 type Chunk={x:number;z:number;data:TownData}
 
@@ -99,7 +99,7 @@ function chunkAreas(seed:number,cx:number,cz:number,spawnX:number,spawnZ:number)
   return areas
 }
 
-function generateChunkRaw(seed:number,cx:number,cz:number):TownData{
+function generateChunkRaw(seed:number,cx:number,cz:number,o?:{flat?:boolean;roadsScale?:number}):TownData{
   const x0=cx*CHUNK,x1=x0+CHUNK,z0=cz*CHUNK,z1=z0+CHUNK
   const rId=(hash32(seed,cx*31+cz*73)||1)>>>0
   const roads:{id:number;p:Point[];width:number;kind:string;name:string}[]=[]
@@ -120,6 +120,16 @@ function generateChunkRaw(seed:number,cx:number,cz:number):TownData{
   for(let k=0;k<GRID;k++){
     const wz=z0+(k+.5)*SPACING
     roads.push({id:(rId+GRID*7+k*7+300)|0,p:[[x0,wz],[x1,wz]] as Point[],width:6,kind:'residential',name:''})
+  }
+  if((o?.roadsScale??1)>1){
+    for(let k=0;k<=GRID;k++){
+      const wx=x0+(k+.25)*SPACING,wy=x0+(k+.75)*SPACING
+      roads.push({id:(rId+GRID*11+k*11+400)|0,p:[[wx,z0],[wx,z1]] as Point[],width:6,kind:'residential',name:''})
+      roads.push({id:(rId+GRID*13+k*13+500)|0,p:[[wy,z0],[wy,z1]] as Point[],width:6,kind:'residential',name:''})
+      const wz=z0+(k+.25)*SPACING,wo=z0+(k+.75)*SPACING
+      roads.push({id:(rId+GRID*17+k*17+600)|0,p:[[x0,wz],[x1,wz]] as Point[],width:6,kind:'residential',name:''})
+      roads.push({id:(rId+GRID*19+k*19+700)|0,p:[[x0,wo],[x1,wo]] as Point[],width:6,kind:'residential',name:''})
+    }
   }
   const streetRects:{x1:number;z1:number;x2:number;z2:number}[]=[]
   for(const rd of roads){
@@ -196,11 +206,11 @@ function generateChunkRaw(seed:number,cx:number,cz:number):TownData{
     }
     if(!dmHit)roads.push({id:(rId+500+bi)|0,p:[edPt,[nr.x,nr.z]] as Point[],width:4,kind:'service',name:''})
   }
-  const elev=genElev(x0,z0,x1,z1,seed,ELEV_RES)
+  const elev=genElev(x0,z0,x1,z1,seed,ELEV_RES,o?.flat)
   const {nx,nz,res:elevRes,data:d}=elev
-  for(let ix=0;ix<nx;ix++)d[(nz-2)*nx+ix]=worldHeight(x0+ix*elevRes,z1,seed)
-  for(let iz=0;iz<nz;iz++)d[iz*nx+(nx-2)]=worldHeight(x1,z0+iz*elevRes,seed)
-  d[(nz-2)*nx+(nx-2)]=worldHeight(x1,z1,seed)
+  for(let ix=0;ix<nx;ix++)d[(nz-2)*nx+ix]=worldHeight(x0+ix*elevRes,z1,seed,o?.flat)
+  for(let iz=0;iz<nz;iz++)d[iz*nx+(nx-2)]=worldHeight(x1,z0+iz*elevRes,seed,o?.flat)
+  d[(nz-2)*nx+(nx-2)]=worldHeight(x1,z1,seed,o?.flat)
   const result:TownData={
     bounds:[x0,z0,x1,z1],
     spawn,
@@ -214,11 +224,11 @@ function generateChunkRaw(seed:number,cx:number,cz:number):TownData{
 
 const cache=new Map<string,TownData>()
 const CACHE_MAX=96
-export function generateChunk(seed:number,cx:number,cz:number):TownData{
-  const key=seed+':'+cx+':'+cz
+export function generateChunk(seed:number,cx:number,cz:number,o?:{flat?:boolean;roadsScale?:number}):TownData{
+  const key=seed+':'+cx+':'+cz+':'+(o?.flat?1:0)+':'+(o?.roadsScale??1)
   const hit=cache.get(key)
   if(hit){cache.delete(key);cache.set(key,hit);return hit}
-  const d=generateChunkRaw(seed,cx,cz)
+  const d=generateChunkRaw(seed,cx,cz,o)
   if(cache.size>=CACHE_MAX){
     const first=cache.keys().next().value
     if(first!==undefined)cache.delete(first)

@@ -1,6 +1,6 @@
 import type {TownData} from './town-data'
 type Point=[number,number]
-type GenOptions={seed:number;forest:number;field:number;city:number;size?:number}
+type GenOptions={seed:number;forest:number;field:number;city:number;size?:number;flat?:boolean;roadsScale?:number}
 
 function hash(x:number,y:number,s:number){
   const n=Math.sin(x*127.1+y*311.7+s*113.5)*43758.5453
@@ -25,10 +25,10 @@ function rng(seed:number){
   return()=>{s^=s<<13;s^=s>>17;s^=s<<5;return((s>>>0)+1)/4294967296}
 }
 
-export function genElev(x0:number,z0:number,x1:number,z1:number,s:number,res:number){
+export function genElev(x0:number,z0:number,x1:number,z1:number,s:number,res:number,flat?:boolean){
   const nx=Math.floor((x1-x0)/res)+1,nz=Math.floor((z1-z0)/res)+1
   const d=new Float32Array(nx*nz)
-  const amp=4+Math.abs(s)%5
+  const amp=flat?0:4+Math.abs(s)%5
   for(let iz=0;iz<nz;iz++){
     for(let ix=0;ix<nx;ix++){
       const wx=x0+ix*res,wz=z0+iz*res
@@ -37,8 +37,8 @@ export function genElev(x0:number,z0:number,x1:number,z1:number,s:number,res:num
   }
   return{o:[x0,z0]as[number,number],res,nx,nz,data:Array.from(d)}
 }
-export function worldHeight(x:number,z:number,seed:number){
-  return(4+Math.abs(seed)%5)*(fbm(x*.0012+17.3,z*.0012+31.7,seed,5)-.5)
+export function worldHeight(x:number,z:number,seed:number,flat?:boolean){
+  return(flat?0:(4+Math.abs(seed)%5))*(fbm(x*.0012+17.3,z*.0012+31.7,seed,5)-.5)
 }
 
 function generateTown(o:GenOptions):TownData{
@@ -55,7 +55,7 @@ function generateTown(o:GenOptions):TownData{
   const pad=sz*.12
   const cityW=sz*2*Math.sqrt(nc),cityH=sz*2*Math.sqrt(nc)
   const cx0=-cityW/2,cx1=cityW/2,cz0=-cityH/2,cz1=cityH/2
-  const targetSp=450*Math.sqrt(cityW/2000)
+  const targetSp=450*Math.sqrt(cityW/2000)/(o.roadsScale??1)
   const mN=Math.max(1,Math.round((cx1-cx0)/targetSp)||1)
   const mM=Math.max(1,Math.round((cz1-cz0)/targetSp)||1)
   const mainSp=(cx1-cx0)/mN,mainSp2=(cz1-cz0)/mM
@@ -133,12 +133,13 @@ function generateTown(o:GenOptions):TownData{
       if(rx-lx<cm*2||bz-tz<cm*2)continue
       const innerW=rx-lx-cm*2,innerH=bz-tz-cm*2
       if(innerW<10||innerH<10)continue
-      const cellW=Math.max(16,Math.floor(innerW/6))
-      const cellH=Math.max(16,Math.floor(innerH/6))
+      const bScale=Math.max(1,Math.sqrt(o.roadsScale??1))
+      const cellW=Math.max(12,Math.floor(innerW/(6*bScale)))
+      const cellH=Math.max(12,Math.floor(innerH/(6*bScale)))
       const cols=Math.floor(innerW/cellW),rows=Math.floor(innerH/cellH)
       for(let cy=0;cy<rows;cy++){
         for(let cx=0;cx<cols;cx++){
-          if(rand()>.5)continue
+          if(rand()>.5+.05*(bScale-1))continue
           const bx=lx+cm+cx*cellW+cellW/2
           const bz2=tz+cm+cy*cellH+cellH/2
           let bw=cellW*.55+rand()*cellW*.35,bh=cellH*.55+rand()*cellH*.35
@@ -243,7 +244,7 @@ function generateTown(o:GenOptions):TownData{
   }
   areas.push({p:wp as[number,number][],kind:'water',name:''})
 
-  const elev=genElev(bounds[0],bounds[1],bounds[2],bounds[3],seed,8)
+  const elev=genElev(bounds[0],bounds[1],bounds[2],bounds[3],seed,8,o.flat)
 
   function nearRoad(px:number,pz:number):{x:number,z:number,yaw:number}|null{
     let best=1e9,br:{x:number,z:number,yaw:number}|null=null
