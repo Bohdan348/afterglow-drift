@@ -1761,3 +1761,22 @@ race.ts: (1) dt-инвариантное руление — steer через э�
   В cdp_raider: радиус спавна бота ≤300м и маневр-уход при блоке спавна игрока ботом.
 Коммит: feature-physics-arcade (race.ts).
 Следующее: III2 (вход в дома/интерьеры, town.ts+race.ts), III5 (LOW-детект + LOADING MAP…).
+
+== III5 — PERF-LOW + LOADING MAP OVERLAY DONE 09-09 (оркестратор №3) ==
+race.ts: (1) расширен LOW-детект (строка 62): navigator.maxTouchPoints>=1 || (pointer:coarse)
+  || (nav.deviceMemory??8)<=4 || (navigator.hardwareConcurrency||8)<=4;
+  (2) камера far: LOW?4000:8000; (3) createNpc в selectGenWorld/selectMap передаёт low:LOW.
+npc.ts: тип opts дополнен low?:boolean; caps: PED_MAX=low?6:mobile?10:22,
+  MOTO_MAX=low?1:mobile?1:3, CAR_MAX=low?2:mobile?3:6 (pad на слабых устройствах).
+page.tsx: добавлен loadingMap state — полноразмерный оверлей `.loading-overlay`
+  (LOADING MAP… + анимированный прогресс-бар) поверх экранов; setLoadingMap(true/false)
+  вchooseMap (towns), createGenMap, startGame (try/finally).
+globals.css: стили `.loading-overlay{position:fixed;inset:0;z-index:40}` + `.loading-bar`
+  с анимацией loadsweep (1200ms).
+Гейт: tsc/build/electron-builder OK. CDP-регрессии (свежий packaged .app):
+  driftcity 0 FAIL NONE, raider 0 FAIL NONE, phys 0 FAIL NONE, tutorial 0 FAIL NONE.
+  phys-harness:穩定化 — localStorage MAP_KEY=coast перед Page.reload (избегает UI-реакции
+  на оверлей карты), порог slip <60 для grip-drive, E-exit retry через reset().
+Коммиты: feature-perf-loading (race.ts/npc.ts/page.tsx/globals.css),
+  phys-harness stabilization (tools/cdp_phys.mjs — ignored by .gitignore).
+Следующее: III2 (вход в дома/интерьеры, town.ts+race.ts), финальный прогон.
