@@ -1809,3 +1809,17 @@ page.tsx: hud default interior:false; мини-карта города и full-m
 Коммиты: backup-homes (app/interiors.ts) → feature-home-interiors (race.ts/page.tsx).
 Следующее: III2b (массовые двери/интерьеры — больше классов домов, мебель) или финальный
   прогон Волны III + итоговый отчёт (graphify STALE).
+
+== ФИНАЛЬНЫЙ ПРОГОН ВОЛНЫ III (09-09, свежий packaged .app от ce6e8f4) ==
+CDP 0 FAIL console NONE: homes 0, driftcity 0, raider 0, phys 0, tutorial 0,
+  i1_rot 0 (харнесс не собирает консоль — «check CDP logs» это статичная строка),
+  i25_seat 0, i5_cam 0, i34_ui 0, npc_glb 0, sport 28 OK 0, sportmode 0.
+Харнесс-фиксы (tools/ не коммитятся): cdp_sport.mjs селектор паузы .change-map →
+  .exit-to-menu (кнопка переименована в UI, харнесс отставал). cdp_cars.mjs —
+  УСТАРЕЛ: feature-open-paid (I4) открыл все машины (test-mode, SELECT без BUY);
+  актуальное покрытие гаражной экономики — cdp_i34_ui (owned/SELECT 0 FAIL).
+  Важно: прогон нескольких харнессов подряд в одном .app НЕ корректен — состояние
+  (localStorage afterglow.map/afterglow.wallet + открытый ген-мир) переносится;
+  каждый харнесс — на свежем .app.
+Закрыто: Волна III (III1/III2a/III3/III4-A/III5) — все CDP-гейты зелёные.
+Хвост: graphify НЕ установлен (граф STALE); oxlint 101 baseline — не гейт.
