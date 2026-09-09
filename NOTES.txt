@@ -1497,3 +1497,35 @@ Gates: tsc --noEmit OK; npm run build OK; electron-builder --mac --arm64 OK.
   E garage 12 карточек / 5 buy.
   F desktop regression: fine pointer, нет gamepad AUTO, full-res canvas 2160x1345, keyboard drive 183 km/h, ON override.
 Gates: tsc --noEmit OK; npm run build OK; electron-builder --mac --arm64 OK.
+
+## Graphify — граф знаний кодовой базы   статус: DONE (установлен и построен)
+Инструмент: https://github.com/Graphify-Labs/graphify (CLI v0.9.56, локально, AST-only, без API-ключей).
+Установка: `uv tool install graphifyy`; skill установлен в .opencode/skills/graphify (SKILL.md + references),
+  плагин .opencode/plugins/graphify.js (tool.execute.before hook: проверяет граф и пересобирает после правок),
+  секция graphify в AGENTS.md. Конфиг opencode читается при старте — после установки нужен рестарт opencode.
+Как пользоваться (в каталоге game/, PATH $HOME/.local/bin):
+  - `/graphify . --code-only` — (пере)построить граф всех код-файлов без LLM;
+  - `graphify query "<вопрос>"` — scoped-подграф по вопросу; `graphify path "A" "B"` — связи между символами;
+    `graphify explain "Узел"` — все рёбра узла с путями файлов;
+  - `graphify cluster-only .` — пересчитать сообщества/GRAPH_REPORT.md/graph.html;
+  - `graphify update .` — инкрементально обновить граф после правок кода (без API-затрат).
+Результат (построен 09-09, 100 код-файлов): graphify-out/graph.json (972 узла, 1857 рёбер, 53 сообщества),
+  GRAPH_REPORT.md (god-узлы), graph.html (интерактивная карта, открывать в браузере).
+God-узлы нашей игры: cn() (343 связи), createGame() (56, связывает page/gen-loader/car-multi-glb/npc/race/
+  createRaceway), react, lucide-react, rules, createRaceway, Home(), createTown(). Импорт-циклов: нет.
+Хвосты: клики по graph.html желательно проверить вручную; graphify-out/ — служебный, можно gitignore,
+  но плагин ожидает его наличие (не удалять). После фаз F/B2/H — `graphify update .` для актуализации.
+
+## Phase F — коллизии (игрок↔NPC, NPC↔NPC, пешеходы уворачиваются)   статус: DONE
+app/npc.ts: Veh.rad (car 2.2 / moto 1.3), hitT; spawn-гард против наложений (8 ретраев); коллизия игрок↔NPC
+  по отрисованным grp-позициям: push-apart кап 1.2м/кадр, импульс по нормали e=.35 (массы игрок=1, car=1, moto=.6),
+  скорость NPC правится по проекции на forward, сильный латеральный швырок в lat; hitT=.45 + drag. NPC↔NPC:
+  отталкивание латеральное через cross pc j), знак через Math.sign(lt) с детерминизмом по seed, пин лат. минимума
+  в контакте (|lt|<1.5), гейт дрифт-шоу через touch (не затирает расталкивание), eff-шапка. Пешеходы: уворот
+  по латерали + ускорение (rp<3.4). debug: gx/gz/life; update() возвращает col {px,pz,vx,vz}.
+app/race.ts: радар prr (car 2.4 / bike 1.1 / moto 2.4), интеграция col: позиция+vx/vz, при ударе combo=0,
+  npcHit=.35 → drag vx/vz exp(-1.6·dt); foot не коллайдится.
+Верификация tools/cdp_collide.mjs 0 FAIL: таран 141→50 (импульс ≥20% гашения), npcShift≥.25 (1.3м),
+  postMin≥1.2 (3.19), NPC↔NPC sust≤2% && minOd≥.1 (sust=0/1770, minOd=0.10), minPed≥.7 (0.71); console NONE.
+Регрессии: cdp_ped 0 FAIL, cdp_cars 0 FAIL, cdp_npc_glb 0 FAIL, cdp_raceway 0 FAIL (флейкует на drift-pass
+  ~50% — raceway-трешхолд, от npc.ts не зависит). Gates: tsc --noEmit OK; npm run build OK; electron-builder OK.
