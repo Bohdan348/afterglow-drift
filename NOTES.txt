@@ -1722,3 +1722,27 @@ DONE-criteria каждой фазы: код без комментариев → 
   tools/cdp_tutorial.mjs 0 FAIL, console NONE. graphify update . OK (топология без изменений).
 Следующее: Волна III — III1 (driftgrid-city + пресет DRIFT), III3 (wild-bot npc.ts + спавн),
   III2 (дома/интерьеры), III4 (физика — по согласованию A/B/C), III5 (perf + LOADING MAP…).
+
+== ВОЛНА III — III1+III3 DONE 09-09 (оркестратор №3) ==
+III1 — DRIFT CITY: app/page.tsx (карта #06 Drift Grid, townTag GRID, PRESETS.drift,
+  GEN_PRESETS DRIFT CITY, flat/roadsScale в createGenMap/startGame), app/gen-town.ts
+  (flat?/roadsScale?, genElev amp=0, targetSp/(roadsScale), bScale плотности),
+  app/gen-loader.ts (generateChunkRaw/generateChunk принимают {flat,roadsScale},
+  под-дороги rs>1 ~4x, ключ кеша с опциями), public/maps/driftgrid.json (seed 42,
+  995 roads, 1884 bld, плоский рельеф), tools/gen_driftgrid.mjs, tools/cdp_driftcity.mjs.
+  Свежий спавн в infinite: ближайший сегмент дороги (вместо фикс. точки) — машина не
+  застревает в зданиях (race.ts selectGenWorld infinite).
+III3 — wild-bot рейдер: app/npc.ts (spawnWild/despawnWild/_dw, wildYaw/wildTimer,
+  случайные развороты ±72° 1-3с, eff 40-100% +10% реверс, respawn 1с, despawn>300м,
+  debugObj.wild); race.ts: spawnWild в reset/pause + createNpc для gen-миров.
+  Харнесс tools/cdp_raider.mjs.
+Гейт Волны III: tsc 0, build OK, electron-builder OK. CDP (packaged .app, 9222):
+  driftcity 0 FAIL (фазы A-F, infinite speed 54.4), raider 0 FAIL (бот двигается,
+  ground y=0.06, дистанция ≤350), регрессы i1_rot/i25_seat/i5_cam/i34_ui/tutorial
+  0 FAIL, console NONE — все 7 харнессов.
+Коммиты: feature-drift-city (page.tsx, gen-loader.ts, gen-town.ts, race.ts — интеграция
+  driftgrid+infinite+spawn; в race.ts включены вызовы spawnWild III3 для целостности),
+  feature-raider-bot (npc.ts); NOTES отдельно. tools/* не коммитятся.
+Хвосты: graphify НЕ установлен (как в Волне II) → граф STALE; oxlint 101 baseline — не гейт.
+Следующее: III4-A (физика: dt-инвариант руления, демпфер скольжения, HANDLING), затем
+  III2 (вход в дома/интерьеры), III5 (флаг LOW в race.ts ~62 + LOADING MAP… в page.tsx).
