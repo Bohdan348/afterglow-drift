@@ -22,7 +22,7 @@ export async function loadCarModelMulti(url:string):Promise<CarModel|null>{
     const flat=new T.Group();const meshes:T.Mesh[]=[];const textures:T.Texture[]=[];
     root.traverse(o=>{if(!(o instanceof T.Mesh))return;const g=o.geometry.clone();g.applyMatrix4(o.matrixWorld);g.computeVertexNormals();const m=new T.Mesh(g,o.material);m.name=o.name;m.castShadow=true;m.receiveShadow=true;flat.add(m);meshes.push(m);const mats=Array.isArray(m.material)?m.material:[m.material];mats.forEach(mat=>{const map=(mat as T.MeshStandardMaterial).map;if(map&&textures.indexOf(map)<0)textures.push(map)})});
     const box=new T.Box3().setFromObject(flat);const center=box.getCenter(new T.Vector3());
-    const bake=new T.Matrix4().multiplyMatrices(new T.Matrix4().makeRotationY(Math.PI),new T.Matrix4().makeTranslation(-center.x,-box.min.y,-center.z));
+    const bake=new T.Matrix4().makeTranslation(-center.x,-box.min.y,-center.z);
     meshes.forEach(m=>{m.geometry.applyMatrix4(bake);m.geometry.computeVertexNormals()});
     flat.updateMatrixWorld(true);
     const carH=new T.Box3().setFromObject(flat).max.y;

@@ -48,9 +48,7 @@ export async function loadCarModel(url: string): Promise<CarModel | null> {
     // it so the tires rest on y=0.
     const box = new T.Box3().setFromObject(flat);
     const center = box.getCenter(new T.Vector3());
-    const rot = new T.Matrix4().makeRotationY(Math.PI);
-    const toOrigin = new T.Matrix4().makeTranslation(-center.x, -box.min.y, -center.z);
-    const bake = new T.Matrix4().multiplyMatrices(rot, toOrigin);
+    const bake = new T.Matrix4().makeTranslation(-center.x, -box.min.y, -center.z);
     meshes.forEach((m) => {
       m.geometry.applyMatrix4(bake);
       m.geometry.computeVertexNormals();
