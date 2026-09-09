@@ -20,7 +20,7 @@ function rand(seed:number,key:number){
   return()=>{s^=s<<13;s^=s>>>17;s^=s<<5;return((s>>>0)+1)/4294967296}
 }
 
-function cityBlocks(cx:number,cz:number){
+function cityBlocks(cx:number,cz:number,streetRects:{x1:number;z1:number;x2:number;z2:number}[]=[]){
   const x0=cx*CHUNK,x1=x0+CHUNK,z0=cz*CHUNK,z1=z0+CHUNK
   const buildings:{id:number;p:Point[];h:number;kind:string;knownHeight:boolean}[]=[]
   const bId=(hash32(cx,cz)|0)>>>0
@@ -49,7 +49,11 @@ function cityBlocks(cx:number,cz:number){
         else if(kf>.94)kind='retail'
         else if(kf>.9)kind='garages'
         else if(kf>.86)kind='greenhouse'
-        buildings.push({id:(bId+(jx*GRID+jz)*7+i*3+1)|0,p:pts,h:3.2+r()*9+(kind==='apartments'?r()*7:0),kind,knownHeight:false})
+        let onRoad=false
+        for(const sr of streetRects){
+          if(bx>sr.x1-8&&bx<sr.x2+8&&bz>sr.z1-8&&bz<sr.z2+8){onRoad=true;break}
+        }
+        if(!onRoad)buildings.push({id:(bId+(jx*GRID+jz)*7+i*3+1)|0,p:pts,h:3.2+r()*9+(kind==='apartments'?r()*7:0),kind,knownHeight:false})
       }
     }
   }
@@ -79,13 +83,15 @@ function chunkAreas(seed:number,cx:number,cz:number,spawnX:number,spawnZ:number)
       areas.push({p:pts as Point[],kind:'water',name:''})
     }
   }
-  if(r()<.38){
-    const fr=95+r()*85
-    const fcx=Math.max(x0+fr+6,Math.min(x1-fr-6,x0+CHUNK/2+(r()-.5)*CHUNK*.7))
-    const fcz=Math.max(z0+fr+6,Math.min(z1-fr-6,z0+CHUNK/2+(r()-.5)*CHUNK*.7))
+  const forestR=rand(seed+cx*137+cz*251,42)
+  const forestCount=1+(forestR()*2|0)
+  for(let fi=0;fi<forestCount;fi++){
+    const fr=85+forestR()*95
+    const fcx=Math.max(x0+fr+6,Math.min(x1-fr-6,x0+CHUNK/2+(forestR()-.5)*CHUNK*.7))
+    const fcz=Math.max(z0+fr+6,Math.min(z1-fr-6,z0+CHUNK/2+(forestR()-.5)*CHUNK*.7))
     const pts:Point[]=[]
     for(let i=0;i<10;i++){
-      const a=i/10*Math.PI*2+(r()-.5)*.5,rr=fr*(.75+r()*.25)
+      const a=i/10*Math.PI*2+(forestR()-.5)*.5,rr=fr*(.75+forestR()*.25)
       pts.push([fcx+Math.cos(a)*rr,fcz+Math.sin(a)*rr])
     }
     areas.push({p:pts as Point[],kind:'forest',name:''})
@@ -107,7 +113,89 @@ function generateChunkRaw(seed:number,cx:number,cz:number):TownData{
     const main=k%2===0
     roads.push({id:(rId+k*7+41)|0,p:[[x0,wz],[x1,wz]] as Point[],width:main?10:6,kind:main?'unclassified':'residential',name:''})
   }
-  const spawn={x:x0+CHUNK/2,z:z0+SPACING/2,yaw:Math.PI}
+  for(let k=0;k<GRID;k++){
+    const wx=x0+(k+.5)*SPACING
+    roads.push({id:(rId+GRID*3+k*3+200)|0,p:[[wx,z0],[wx,z1]] as Point[],width:6,kind:'residential',name:''})
+  }
+  for(let k=0;k<GRID;k++){
+    const wz=z0+(k+.5)*SPACING
+    roads.push({id:(rId+GRID*7+k*7+300)|0,p:[[x0,wz],[x1,wz]] as Point[],width:6,kind:'residential',name:''})
+  }
+  const streetRects:{x1:number;z1:number;x2:number;z2:number}[]=[]
+  for(const rd of roads){
+    const hw=rd.width/2
+    if(Math.abs(rd.p[0][0]-rd.p[1][0])<.5){
+      const x=rd.p[0][0]
+      const z1=Math.min(rd.p[0][1],rd.p[1][1]),z2=Math.max(rd.p[0][1],rd.p[1][1])
+      streetRects.push({x1:x-hw,z1,x2:x+hw,z2})
+    }else if(Math.abs(rd.p[0][1]-rd.p[1][1])<.5){
+      const z=rd.p[0][1]
+      const x1=Math.min(rd.p[0][0],rd.p[1][0]),x2=Math.max(rd.p[0][0],rd.p[1][0])
+      streetRects.push({x1,z1:z-hw,x2,z2:z+hw})
+    }
+  }
+  const blds=cityBlocks(cx,cz,streetRects)
+  const spRand=rand(seed+cx*17+cz*31,99)
+  const spCandidates:{x:number;z:number;dist:number}[]=[]
+  for(let si=0;si<6;si++){
+    const idx=(spRand()*roads.length)|0
+    const rd=roads[idx]
+    const t=.1+spRand()*.8
+    const ax=rd.p[0][0],az=rd.p[0][1],bx=rd.p[1][0],bz=rd.p[1][1]
+    const px=ax+(bx-ax)*t,pz=az+(bz-az)*t
+    if(px>=x0+5&&px<=x1-5&&pz>=z0+5&&pz<=z1-5){
+      const dx=px-(x0+CHUNK/2),dz=pz-(z0+CHUNK/2)
+      spCandidates.push({x:px,z:pz,dist:Math.hypot(dx,dz)})
+    }
+  }
+  let spawn:{x:number;z:number;yaw:number}
+  if(spCandidates.length>0){
+    const best=spCandidates.sort((a,b)=>b.dist-a.dist)[0]
+    spawn={x:best.x,z:best.z,yaw:0}
+  }else{
+    spawn={x:x0+CHUNK/2,z:z0+SPACING/2,yaw:Math.PI}
+  }
+  function nearChunkRoad(px:number,pz:number):{x:number;z:number}|null{
+    let best=1e9,br:{x:number;z:number}|null=null
+    for(const rd of roads){
+      for(let i=0;i<rd.p.length-1;i++){
+        const ax=rd.p[i][0],az=rd.p[i][1],bx2=rd.p[i+1][0],bz2=rd.p[i+1][1]
+        const ddx=bx2-ax,ddz=bz2-az,l2=ddx*ddx+ddz*ddz
+        if(l2<.01)continue
+        let t=((px-ax)*ddx+(pz-az)*ddz)/l2
+        t=Math.max(0,Math.min(1,t))
+        const cx2=ax+t*ddx,cz2=az+t*ddz
+        const dist=(px-cx2)**2+(pz-cz2)**2
+        if(dist<best){best=dist;br={x:cx2,z:cz2}}
+      }
+    }
+    return br
+  }
+  const dwRand=rand(seed+cx*41+cz*67,77)
+  for(let bi=0;bi<blds.length;bi++){
+    if(dwRand()>.4)continue
+    const b=blds[bi]
+    const bcx=b.p.reduce((s,p)=>s+p[0],0)/b.p.length
+    const bcz=b.p.reduce((s,p)=>s+p[1],0)/b.p.length
+    const nr=nearChunkRoad(bcx,bcz)
+    if(!nr)continue
+    const ddx=nr.x-bcx,ddz=nr.z-bcz,ddist=Math.hypot(ddx,ddz)
+    if(ddist<8||ddist>120)continue
+    let bestEd=1e9,edPt:Point=[bcx,bcz]
+    for(const pt of b.p){
+      const pdx=pt[0]-bcx,pdz=pt[1]-bcz,dot=pdx*ddx+pdz*ddz
+      if(dot>0){const pd=Math.hypot(pdx,pdz);if(pd<bestEd){bestEd=pd;edPt=pt}}
+    }
+    const dmX=(edPt[0]+nr.x)/2,dmZ=(edPt[1]+nr.z)/2
+    if(dmX<x0||dmX>x1||dmZ<z0||dmZ>z1)continue
+    let dmHit=false
+    for(const ob of blds){
+      if(ob===b)continue
+      const xs=ob.p.map(p=>p[0]),zs=ob.p.map(p=>p[1])
+      if(dmX>=Math.min(...xs)&&dmX<=Math.max(...xs)&&dmZ>=Math.min(...zs)&&dmZ<=Math.max(...zs)){dmHit=true;break}
+    }
+    if(!dmHit)roads.push({id:(rId+500+bi)|0,p:[edPt,[nr.x,nr.z]] as Point[],width:4,kind:'service',name:''})
+  }
   const elev=genElev(x0,z0,x1,z1,seed,ELEV_RES)
   const {nx,nz,res:elevRes,data:d}=elev
   for(let ix=0;ix<nx;ix++)d[(nz-2)*nx+ix]=worldHeight(x0+ix*elevRes,z1,seed)
@@ -117,7 +205,7 @@ function generateChunkRaw(seed:number,cx:number,cz:number):TownData{
     bounds:[x0,z0,x1,z1],
     spawn,
     elev,
-    buildings:cityBlocks(cx,cz),
+    buildings:blds,
     roads,
     areas:chunkAreas(seed,cx,cz,spawn.x,spawn.z)
   }

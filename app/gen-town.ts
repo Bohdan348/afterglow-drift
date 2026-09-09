@@ -76,10 +76,34 @@ function generateTown(o:GenOptions):TownData{
     const rxx=cx0+(i+.5)*mainSp
     roads.push({id:r2id(),p:[[rxx,cz0],[rxx,cz1]] as Point[],width:6,kind:'residential',name:''})
   }
+  for(let j=0;j<mM;j++){
+    const rz1=cz0+(j+.25)*mainSp2
+    const rz2=cz0+(j+.75)*mainSp2
+    roads.push({id:r2id(),p:[[cx0,rz1],[cx1,rz1]] as Point[],width:6,kind:'residential',name:''})
+    roads.push({id:r2id(),p:[[cx0,rz2],[cx1,rz2]] as Point[],width:6,kind:'residential',name:''})
+  }
+  for(let i=0;i<mN;i++){
+    const rx1=cx0+(i+.25)*mainSp
+    const rx2=cx0+(i+.75)*mainSp
+    roads.push({id:r2id(),p:[[rx1,cz0],[rx1,cz1]] as Point[],width:6,kind:'residential',name:''})
+    roads.push({id:r2id(),p:[[rx2,cz0],[rx2,cz1]] as Point[],width:6,kind:'residential',name:''})
+  }
 
   const buildings:{id:number;p:Point[];h:number;kind:string;knownHeight:boolean}[]=[]
   const bldId=r2id()
   const cm=12
+
+  function isBuildingAt(px:number,pz:number):boolean{
+    for(const ob of buildings){
+      let inside=false
+      for(let i=0,j=ob.p.length-1;i<ob.p.length;j=i++){
+        const a=ob.p[i],b=ob.p[j]
+        if((a[1]>pz)!==(b[1]>pz)&&px<(b[0]-a[0])*(pz-a[1])/(b[1]-a[1])+a[0])inside=!inside
+      }
+      if(inside)return true
+    }
+    return false
+  }
 
   const streetRects:{x1:number;z1:number;x2:number;z2:number}[]=[]
   for(const rd of roads){
@@ -150,6 +174,41 @@ function generateTown(o:GenOptions):TownData{
     }
   }
 
+  for(let bi=0;bi<buildings.length;bi++){
+    if(rand()>.45)continue
+    const b=buildings[bi]
+    const bcx=b.p.reduce((s,p)=>s+p[0],0)/b.p.length
+    const bcz=b.p.reduce((s,p)=>s+p[1],0)/b.p.length
+    const nr=nearRoad(bcx,bcz)
+    if(!nr)continue
+    const ddx=nr.x-bcx,ddz=nr.z-bcz,ddist=Math.hypot(ddx,ddz)
+    if(ddist<8||ddist>120)continue
+    let bestEd=1e9,edPt:Point=[bcx,bcz]
+    for(const pt of b.p){
+      const pdx=pt[0]-bcx,pdz=pt[1]-bcz,dot=pdx*ddx+pdz*ddz
+      if(dot>0){const pd=Math.hypot(pdx,pdz);if(pd<bestEd){bestEd=pd;edPt=pt}}
+    }
+    const dmX=(edPt[0]+nr.x)/2,dmZ=(edPt[1]+nr.z)/2
+    if(dmX<bounds[0]||dmX>bounds[2]||dmZ<bounds[1]||dmZ>bounds[3])continue
+    if(isBuildingAt(dmX,dmZ))continue
+    roads.push({id:r2id(),p:[edPt,[nr.x,nr.z]] as Point[],width:4,kind:'service',name:''})
+  }
+
+  for(const rd of roads){
+    const hw=rd.width/2
+    if(rd.kind==='service'){
+      if(Math.abs(rd.p[0][0]-rd.p[1][0])<.5){
+        const x=rd.p[0][0]
+        const z1=Math.min(rd.p[0][1],rd.p[1][1]),z2=Math.max(rd.p[0][1],rd.p[1][1])
+        streetRects.push({x1:x-hw,z1,x2:x+hw,z2})
+      }else if(Math.abs(rd.p[0][1]-rd.p[1][1])<.5){
+        const z=rd.p[0][1]
+        const x1=Math.min(rd.p[0][0],rd.p[1][0]),x2=Math.max(rd.p[0][0],rd.p[1][0])
+        streetRects.push({x1,z1:z-hw,x2,z2:z+hw})
+      }
+    }
+  }
+
   const plcX=cx0+mainSp/2,plcZ=cz0+mainSp/2,plcR=mainSp*.35
   const plcPts:Point[]=[]
   for(let i=0;i<8;i++){
@@ -159,12 +218,12 @@ function generateTown(o:GenOptions):TownData{
   buildings.push({id:(bldId+buildings.length*7+1)|0,p:plcPts as[number,number][],h:1.5,kind:'plaza',knownHeight:false})
 
   const areas:{p:Point[];kind:string;name:string}[]=[]
-  const forestN=Math.max(3,Math.floor(nf*8))
+  const forestN=Math.max(4,Math.round(nf*14))
   for(let k=0;k<forestN;k++){
     const a=k/forestN*Math.PI*2+rand()*.5
     const d=sz*.5+rand()*sz*.2
     const fcx=Math.cos(a)*d,fcz=Math.sin(a)*d
-    const r=sz*.25+rand()*sz*.15
+    const r=sz*.32+rand()*sz*.22
     const pts:Point[]=[]
     for(let i=0;i<10;i++){
       const ba=i/10*Math.PI*2,rr=r*(0.7+rand()*.3)
@@ -203,13 +262,18 @@ function generateTown(o:GenOptions):TownData{
     return br
   }
 
-  const ispX=cx0+mainSp*.25+rand()*mainSp*.5
-  const ispZ=cz0+mainSp*.25+rand()*mainSp*.5
-  const sp1=nearRoad(ispX,ispZ)
+  let bestSp:{x:number;z:number;yaw:number}|null=null
+  let bestHv=-1
+  for(let si=0;si<5;si++){
+    const ispX=cx0+mainSp*.15+rand()*mainSp*.7
+    const ispZ=cz0+mainSp2*.15+rand()*mainSp2*.7
+    const sp1=nearRoad(ispX,ispZ)
+    if(sp1){const hv=hash(sp1.x,sp1.z,seed);if(hv>bestHv){bestHv=hv;bestSp=sp1}}
+  }
 
   const result:TownData={
     bounds,
-    spawn:sp1??{x:0,z:0,yaw:0},
+    spawn:bestSp??{x:0,z:0,yaw:0},
     elev,
     buildings,
     roads,
